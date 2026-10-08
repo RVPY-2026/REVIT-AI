@@ -130,7 +130,7 @@ Keep them in `lib/constants.ts`.
 Status markers: [x] done · [ ] to do.
 
 1. [x] Next.js 16 + Supabase/Drizzle skeleton, DB schema + first migration, auth/permission helpers, `BACKEND_RULES.md`.
-2. [ ] Tokens, fonts, light/dark, base `ui` components (shadcn), logo.
+2. [x] Tokens, fonts, light/dark, base `ui` components (shadcn, Radix base), logo, favicons. Dev-only showcase at `/ui-kit`.
 3. [ ] Public home + trial sign-up form wired to `submitLeadSignup` (thank-you page with the 2 Zalo links).
 4. [ ] Supabase project + Google provider; `/dang-nhap`, `/auth/callback`, `/chua-kich-hoat`; app shell + role guards (mock role switcher for dev).
 5. [ ] Management: student list (table + kanban), student profile, status changes, call notes, message templates, Excel export.

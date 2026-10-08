@@ -32,4 +32,4 @@ With a Supabase project: fill `.env.local`, then `pnpm db:migrate && pnpm db:see
 - [x] Next.js project setup (skeleton)
 - [x] Backend rules + database schema
 - [ ] Supabase project + Google provider
-- [ ] UI foundation (tokens, shadcn, logo)
+- [x] UI foundation (tokens, shadcn, logo) — preview at `/ui-kit`

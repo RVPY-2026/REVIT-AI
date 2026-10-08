@@ -31,6 +31,8 @@ Precedence when things conflict: the project owner's instructions > this documen
 
 Check the current docs (Context7 or the official site) before using any library API above. Do not rely on memory, especially for Tailwind v4 and the Next.js App Router.
 
+**Component showcase:** `/ui-kit` (development only) renders every token and base component in both themes. Add new shared components there.
+
 **Do not use:** jQuery, Bootstrap, styled-components or other runtime CSS-in-JS, Redux, heavy animation libraries for effects CSS can do.
 
 ---
