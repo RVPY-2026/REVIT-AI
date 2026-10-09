@@ -46,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="vi"
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${lexend.variable} ${beVietnamPro.variable} ${plexMono.variable}`}
     >

@@ -1,6 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-/** Browser client — used only to start Google sign-in and to sign out. */
+/** Browser client — used only for sign-in and sign-out. */
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

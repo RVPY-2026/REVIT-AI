@@ -25,6 +25,7 @@ Precedence when things conflict: the project owner's instructions > this documen
 | Spreadsheet export | **exceljs**, generated on the server (BACKEND_RULES §7) | The "Xuất Excel" button downloads from `/api/export/<list>` |
 | Toasts | **sonner** (via shadcn) | |
 | Long-form content | MDX (`@next/mdx`) | |
+| 3D | **three** (plain, no R3F) | Home page `landing/build-story` only. Loaded with a dynamic `import()` after first paint; drawn as an architectural line drawing in the theme colours |
 | Hosting | **Vercel** | |
 | Package manager | **pnpm** | |
 | Lint/format | ESLint (next config) + Prettier + `prettier-plugin-tailwindcss` | |
@@ -141,6 +142,8 @@ Status colors (`--success`, `--warning`, `--destructive`, `--info`) are for stat
 Type scale (px): 12 · 13 · 14 · 16 · 18 · 21 · 28 · 40 · 56 · 68. Do not invent sizes outside the scale.
 Headings use `text-wrap: balance`. Running text max ~65 characters per line. No all-caps Vietnamese headings; all-caps is allowed only for labels of ≤ 3 words with `letter-spacing: .08em`.
 
+Desktop hero (width ≥ 1024px) also responds to viewport height: at width ≥ 1280px, h1 is 56px at 700–849px height, and 40px below 700px (body 16px). At 1024–1279px width and height below 850px, use the 40px heading and 16px body. Use 16px / 12px content gaps for the 56px / 40px compact layouts, 24px vertical padding, and no extra top margin on the scroll hint. Columns are equal with a 32px gap at 1024–1279px; wider screens use the 5:7 split and 48px gap. Keep the entire intro, both CTAs and all three benefits visible below the 65px header on standard laptop viewports; taller screens retain the width-based 56px / 68px heading scale. Mobile retains its stacked layout.
+
 ### 3.3 Shape and spacing
 
 | Property | Value |
@@ -158,10 +161,15 @@ Headings use `text-wrap: balance`. Running text max ~65 characters per line. No 
 ### 3.4 Icons
 
 - `lucide-react`, `strokeWidth={1.75}`, sizes 16 (inline), 20 (buttons), 24 (cards).
-- Leading icons of feature cards and list items sit in an **icon tile**: `primary-soft` background, 12px radius, icon in `--primary`.
+- **An icon must carry information the text next to it does not.** Use icons for actions (buttons, external-link arrow, copy, +/−), for status, and in the dense app areas (sidebar, toolbars, table rows). Do **not** put an icon in front of every item of a marketing list or every feature card — an icon that just restates its label ("Tiết kiệm thời gian" → clock, "Chất lượng" → shield) is the template look the owner rejected.
+- Never reuse one icon for different meanings on the same page.
+- Marketing pages show things with **drawings, screenshots or numbers**, in the site's technical-drawing language (section marks, elevations, dimension strings, sheets): lists of short statements become numbered notes (`landing/NoteList`: mono `01`, hairline rules); a tool or feature is shown by a drawing or screenshot of what it does, with a one-line caption under it, not as "icon + heading + small text" cards.
+- Where an icon does belong as the lead of an item (mainly app areas), it sits in an **icon tile** (`ui/IconTile`): `primary-soft` background, 12px radius, icon in `--primary`.
 - Domain icons that Lucide lacks (Revit elements: foundation, slab, beam, column, wall, roof) are drawn in-house with the same rules — 24px grid, 1.75 stroke — in `components/icons/revit.tsx`.
 - Icon-only buttons require a Vietnamese `aria-label`.
 - No emoji as UI icons.
+
+Course journey imagery is additive: keep the existing animated timeline, both phase cards, knowledge ring and all copy. The timeline follows the section heading directly. Add three independent 4:3 images inside the three knowledge items: `journey-structure-v1.webp`, `journey-coordination-v1.webp` and `journey-mentoring-v1.webp` in `public/images/landing/`. Preserve the warm light backgrounds in both themes, with 16px frame radius and token borders. Images follow the existing three-column knowledge grid on desktop and stack with their text on mobile. No panorama before the timeline or swipe gallery. Use `next/image`, responsive sizes and lazy loading; captions stay HTML text.
 
 ### 3.5 Motion
 
@@ -191,7 +199,7 @@ The "RVPY" logo is four thin geometric letters (SVG, `stroke="currentColor"`, vi
 
 ### 4.3 Sign-in page
 
-Single centered card with one provider button ("Đăng nhập bằng Google"), logo above, short note below. A separate "account not activated" state with a contact button.
+Single centered card with the Google sign-in button and an email field that sends a passwordless sign-in link, separated by a short "hoặc" divider. Put the logo above and a short note below. A separate "account not activated" state has a contact button.
 
 ---
 
@@ -280,11 +288,12 @@ A static HTML build of the marketing home page using the agreed tokens. It is a 
 | `.nav` | `layout/PublicHeader` |
 | `.pill` | `<Badge variant="soft">` |
 | `.badge.ok / .wait / .info` | `admin/StatusBadge` |
-| `.ic` | `ui/IconTile` |
+| `.ic` | `ui/IconTile` (app areas; see §3.4) |
 | `.panel` | `landing/HeroPanel` |
 | `.path`, `.steps` | `landing/CourseOutline`, `landing/TrialSteps` |
-| `.tiers` / `.tier.hot` | `landing/ReferralTiers` |
-| `.tool` | `landing/ToolCard` |
+| `.tiers` / `.tier.hot` | `landing/FeeTiers` + `landing/FeeCalculator` |
+| `.tool` | `landing/ToolCards` (drawing + caption) |
+| `.benefits` | `landing/NoteList` |
 | `.community`, `.join` | `landing/ZaloCommunity` |
 | `.faq details` | shadcn `<Accordion>` |
 | `.band` | `landing/CtaBand` |

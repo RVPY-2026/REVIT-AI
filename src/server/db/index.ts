@@ -5,11 +5,15 @@ import { serverEnv } from "@/server/env";
 import * as schema from "./schema";
 
 // Reuse one client across hot reloads in development.
-const globalForDb = globalThis as unknown as { pgClient?: ReturnType<typeof postgres> };
+const globalForDb = globalThis as unknown as { pgClient?: ReturnType<typeof postgres>; pgUrl?: string };
 
 // `prepare: false` is required by Supabase's transaction pooler (port 6543).
-const client = globalForDb.pgClient ?? postgres(serverEnv.DATABASE_URL, { prepare: false });
-if (process.env.NODE_ENV !== "production") globalForDb.pgClient = client;
+const client = globalForDb.pgUrl === serverEnv.DATABASE_URL && globalForDb.pgClient
+  ? globalForDb.pgClient : postgres(serverEnv.DATABASE_URL, { prepare: false });
+if (process.env.NODE_ENV !== "production") {
+  globalForDb.pgClient = client;
+  globalForDb.pgUrl = serverEnv.DATABASE_URL;
+}
 
 /**
  * Connects as the database owner and therefore bypasses RLS.

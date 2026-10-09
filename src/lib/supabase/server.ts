@@ -1,9 +1,12 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 /** Supabase client for Server Components, Server Actions and Route Handlers. Auth + Storage only — data goes through Drizzle. */
 export async function createClient() {
+  // Supabase reads the current time during initialization; wait for a real request.
+  await connection();
   const cookieStore = await cookies();
 
   return createServerClient(

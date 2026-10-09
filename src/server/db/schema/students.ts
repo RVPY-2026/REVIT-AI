@@ -1,4 +1,5 @@
-import { type AnyPgColumn, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { type AnyPgColumn, check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { studentStatusEnum } from "./enums";
 import { adSources, users } from "./users";
 
@@ -7,7 +8,8 @@ export const students = pgTable(
   "students",
   {
     id: uuid().primaryKey().defaultRandom(),
-    code: text().notNull().unique(), // `${source.code}${seq}`, e.g. A15
+    code: text().notNull().unique(), // source + YYMM + 3-digit sequence, e.g. A2610007
+    codeMonth: text().notNull(),
     sourceId: uuid()
       .notNull()
       .references(() => adSources.id),
@@ -17,11 +19,23 @@ export const students = pgTable(
     email: text(), // lowercase Gmail
     zaloName: text(),
     occupation: text(),
+    birthYear: integer(),
+    specialty: text(),
+    hometown: text(),
+    organization: text(),
+    legacyLabel: text(),
+    legacyRaw: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    zaloFriendAt: timestamp({ withTimezone: true }),
+    group1At: timestamp({ withTimezone: true }),
+    group2At: timestamp({ withTimezone: true }),
+    feeSentAt: timestamp({ withTimezone: true }),
+    softwareReadyAt: timestamp({ withTimezone: true }),
+    officialZaloAt: timestamp({ withTimezone: true }),
     // Remaining sign-up form answers (how they heard about RVPY, experience…).
     signupAnswers: jsonb().$type<Record<string, string>>().notNull().default({}),
     status: studentStatusEnum().notNull().default("new"),
     referredById: uuid().references((): AnyPgColumn => students.id, { onDelete: "set null" }), // the referrer (§7 referral offer)
-    userId: uuid().references(() => users.id, { onDelete: "set null" }), // set when activated for sign-in
+    userId: uuid().unique().references(() => users.id, { onDelete: "set null" }), // set when activated for sign-in
     signedUpAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
@@ -30,7 +44,13 @@ export const students = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    unique().on(t.sourceId, t.seq),
+    unique().on(t.sourceId, t.codeMonth, t.seq),
+    check("students_code_format", sql`${t.code} ~ '^[A-Z][0-9]{2}(0[1-9]|1[0-2])[0-9]{3}$'`),
+    check("students_month_format", sql`${t.codeMonth} ~ '^[0-9]{2}(0[1-9]|1[0-2])$'`),
+    check("students_sequence_range", sql`${t.seq} BETWEEN 1 AND 999`),
+    check("students_no_self_referral", sql`${t.referredById} IS NULL OR ${t.referredById} <> ${t.id}`),
+    index().on(t.sourceId, t.signedUpAt),
+    index().on(t.referredById),
     index().on(t.status),
     index().on(t.phone),
     index().on(t.signedUpAt),

@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { USE_MOCK, hasSupabaseConfig } from "@/lib/runtime-mode";
+
 const PROTECTED_PREFIXES = ["/quan-tri", "/hoc-vien"];
 
 /**
@@ -12,7 +14,8 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   // Mock mode has no Supabase project; the mock role cookie is read in src/server/auth/session.ts.
-  if (process.env.NEXT_PUBLIC_USE_MOCK === "true") return response;
+  if (USE_MOCK) return response;
+  if (!hasSupabaseConfig()) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,7 +39,7 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
 
   const { pathname } = request.nextUrl;
-  if (!data?.claims && PROTECTED_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (!data?.claims && PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     const url = request.nextUrl.clone();
     url.pathname = "/dang-nhap";
     url.search = `?next=${encodeURIComponent(pathname)}`;

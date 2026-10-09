@@ -15,12 +15,14 @@
 
 # next.js
 /.next/
+/.next-signup-check/
 /out/
 
 # production
 /build
 
 # misc
+/data/
 .DS_Store
 *.pem
 

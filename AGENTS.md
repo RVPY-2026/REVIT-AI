@@ -96,15 +96,15 @@ The reference file implements this order.
 
 ## 6. Student pipeline (draft — confirm with client)
 
-`Mới đăng ký` → `Đã kết bạn Zalo` → `Đã vào 2 nhóm` → `Đã gửi học phí` → `Đang học thử` → `Đã đóng tiền` → `Học chính thức`, plus side branch `Không tiếp tục`.
+`Mới đăng ký` → `Đang tư vấn` (legacy `CHỜ CHỐT SALE`) → `Đang học thử` → `Học chính thức`, plus side branch `Không tiếp tục`. Contact, group membership, fee sent, software readiness and official-Zalo contact are separate checklist timestamps, not kanban stages. Payment and license states are independent.
 
-Badge colors: new = info, in progress = warning, paid / enrolled = success, dropped = muted.
+Badge colors: new = info, consulting / trial = warning, enrolled = success, dropped = muted.
 
 Management list (`/quan-tri/hoc-vien`): table view (default) and kanban by pipeline status; filters for status, source (A/B/C/R), sign-up month, and search by name / phone / email / ID; quick actions: change status, open profile, copy phone, open Zalo (`https://zalo.me/<phone>`).
 
 Student profile (`/quan-tri/hoc-vien/[id]`) replaces the per-student sheet the client duplicates by hand: sign-up answers (occupation, how they heard about RVPY…), status timeline, per-lesson progress, call notes, payments, license, granted documents, and a **"next message"** block suggesting the template for the current status with a copy button.
 
-**Student ID** format: `<source code><sequence>`, e.g. `R21` (R = found by RVPY itself), `A15` (ad runner A). Shown in mono. Generated server-side later.
+**Student ID** format: `<source code><YYMM><three-digit sequence>`, e.g. `R2610021` (R = found by RVPY itself), `A2610007` (ad runner A). Allocate atomically per source and month in `Asia/Ho_Chi_Minh`; keep UUIDs as internal keys. Shown in mono. Long Zalo labels are generated when needed; preserve imported labels/raw exceptions separately.
 
 ## 7. Fees & referral offer (confirm base fee with client)
 
@@ -140,13 +140,17 @@ Status markers: [x] done · [ ] to do.
 
 ## 10. Open questions for the client
 
-- Base course fee and packages (adult / child?).
+- Resolve conflicting fee sources: the nine-day poster offers 4,500,000 VND, while the legacy formula suggests 5,400,000 VND for birth year < 1990. Confirm which rule takes precedence; no default agreed fee is automated.
+- Resolve conflicting course schedules: landing copy says minimum 45 days and two online sessions/week; the legacy plan totals 50 base days and the screenshot says 1.5-2 months with specialist sessions Saturday at 05:00. Confirm each phase before publishing those claims.
+
+
+- Confirm the observed birth-year fee rule: born before 1990 → 5.400.000đ suggested, otherwise 4.500.000đ. Keep negotiated fees separate.
 - Is the pipeline in §6 correct and complete?
 - Is there a "teaching assistant" role, or only admin + sale?
 - Can a `sale` see how much their own students paid?
 - Is the add-in licensed to every student or only paying ones, and for how long?
 - Online or in-person lessons?
-- Student code sequence: one counter per source (A1, A2… and R1, R2…) or one shared counter?
+- Prioritize confirmation of CHIA %: commission formula, rate basis, settlement period and sale visibility. Codes are already decided: one counter per source/month.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

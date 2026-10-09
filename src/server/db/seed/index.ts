@@ -2,11 +2,12 @@
 // Fake people for local testing live in src/mocks, never here.
 // Run: pnpm db:seed
 import { config } from "dotenv";
+import { FOUNDATION_LESSONS } from "./lessons";
 config({ path: ".env.local" });
 
 async function main() {
   const { db } = await import("@/server/db");
-  const { adSources, messageTemplates } = await import("@/server/db/schema");
+  const { adSources, lessons, messageTemplates } = await import("@/server/db/schema");
 
   await db
     .insert(adSources)
@@ -14,11 +15,14 @@ async function main() {
     .onConflictDoNothing({ target: adSources.code });
 
   const existing = await db.$count(messageTemplates);
+  // Rerunning reference seeds never overwrites the admin's edited templates.
+  await db.insert(lessons).values(FOUNDATION_LESSONS)
+    .onConflictDoNothing({ target: [lessons.phase, lessons.sortOrder] });
   if (existing === 0) {
     await db.insert(messageTemplates).values([
       {
         title: "Mời vào 2 nhóm Zalo",
-        forStatus: "zalo_added",
+        forStatus: "consulting",
         sortOrder: 10,
         body: "Chào {{ten}}, mời bạn tham gia 2 nhóm Zalo cộng đồng RVPY:\n{{zalo_nhom_1}}\n{{zalo_nhom_2}}",
       },

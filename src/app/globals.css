@@ -164,6 +164,18 @@
   }
 }
 
+/* Keep the desktop hero copy within the viewport below the public header. */
+@custom-variant hero-compact {
+  @media (width >= 80rem) and (700px <= height < 850px) {
+    @slot;
+  }
+}
+@custom-variant hero-short {
+  @media (64rem <= width < 80rem) and (height < 850px), (width >= 80rem) and (height < 700px) {
+    @slot;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -171,6 +183,13 @@
   html {
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
+  }
+  /* In-page anchors (#hanh-trinh, #hoc-thu…) glide instead of jumping. Route changes stay
+     instant via data-scroll-behavior on <html> (app/layout.tsx). */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
   body {
     @apply bg-background text-foreground antialiased;

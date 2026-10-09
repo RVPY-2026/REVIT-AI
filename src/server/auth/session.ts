@@ -1,14 +1,16 @@
 import "server-only";
-import { eq, or } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { can, type Permission, type Role, type SessionUser } from "@/lib/auth/permissions";
 import { createClient } from "@/lib/supabase/server";
+import { USE_MOCK, hasSupabaseConfig } from "@/lib/runtime-mode";
+import { audit } from "@/server/audit";
 import { db } from "@/server/db";
 import { adSources, students, userRoles, users } from "@/server/db/schema";
 
-export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
+export { USE_MOCK };
 export const MOCK_ROLE_COOKIE = "rvpy-mock-role";
 
 /**
@@ -18,22 +20,31 @@ export const MOCK_ROLE_COOKIE = "rvpy-mock-role";
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   if (USE_MOCK) return getMockUser();
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
+  const claims = await getAuthClaims();
   if (!claims?.sub || typeof claims.email !== "string") return null;
 
   const email = claims.email.toLowerCase();
   const [row] = await db
-    .select()
+    .select({ id: users.id, email: users.email, name: users.name, avatarUrl: users.avatarUrl, authUserId: users.authUserId, disabledAt: users.disabledAt })
     .from(users)
     .where(or(eq(users.authUserId, claims.sub), eq(users.email, email)))
+    .orderBy(sql`CASE WHEN ${users.authUserId} = ${claims.sub} THEN 0 ELSE 1 END`)
     .limit(1);
-  if (!row || row.disabledAt) return null;
+  if (!row || row.disabledAt || (row.authUserId && row.authUserId !== claims.sub)) return null;
 
   // First sign-in: link the Supabase auth user to the pre-created row.
   if (!row.authUserId) {
-    await db.update(users).set({ authUserId: claims.sub }).where(eq(users.id, row.id));
+    const linked = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(users).set({ authUserId: claims.sub })
+        .where(and(eq(users.id, row.id), isNull(users.authUserId), isNull(users.disabledAt))).returning({ id: users.id });
+      if (updated) await audit(tx, { actorId: row.id, action: "user.auth_linked", entity: "users", entityId: row.id });
+      return updated;
+    });
+    if (!linked) {
+      const [alreadyLinked] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, row.id), eq(users.authUserId, claims.sub), isNull(users.disabledAt))).limit(1);
+      if (!alreadyLinked) return null;
+    }
   }
 
   const [roleRows, sourceRows, studentRows] = await Promise.all([
@@ -56,7 +67,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 /** Use at the top of every protected page, layout, action and route handler. */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getCurrentUser();
-  if (!user) redirect("/dang-nhap");
+  if (!user) redirect(await getAuthClaims() ? "/chua-kich-hoat" : "/dang-nhap");
   return user;
 }
 
@@ -66,12 +77,18 @@ export async function requirePermission(permission: Permission): Promise<Session
   return user;
 }
 
+const getAuthClaims = cache(async () => {
+  if (USE_MOCK || !hasSupabaseConfig()) return null;
+  const { data, error } = await (await createClient()).auth.getClaims();
+  return error ? null : data?.claims ?? null;
+});
+
 // --- development-only mock auth (FRONTEND_RULES §7) ---
 
 async function getMockUser(): Promise<SessionUser | null> {
   if (process.env.NODE_ENV === "production") return null;
   const role = (await cookies()).get(MOCK_ROLE_COOKIE)?.value as Role | "none" | undefined;
-  if (!role || role === "none") return null;
+  if (role !== "admin" && role !== "sale" && role !== "student") return null;
   return {
     id: `mock-${role}`,
     email: `${role}@example.com`,

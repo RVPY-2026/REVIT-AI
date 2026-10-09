@@ -3,3 +3,5 @@ export * from "./users";
 export * from "./students";
 export * from "./billing";
 export * from "./content";
+export * from "./learning";
+export * from "./feedback";

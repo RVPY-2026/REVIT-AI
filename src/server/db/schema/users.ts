@@ -1,4 +1,5 @@
-import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { roleEnum } from "./enums";
 
 /**
@@ -29,14 +30,27 @@ export const userRoles = pgTable(
 
 /**
  * Lead sources: R = RVPY itself, A/B/C… = ad runners. A `sale` user sees only
- * students whose source they own. `nextSeq` hands out student codes (A15, R21).
+ * students whose source they own. Counters are separate for each source/month.
  */
 export const adSources = pgTable("ad_sources", {
   id: uuid().primaryKey().defaultRandom(),
   code: text().notNull().unique(), // single uppercase letter
   name: text().notNull(),
   ownerUserId: uuid().references(() => users.id, { onDelete: "set null" }),
-  nextSeq: integer().notNull().default(1),
   active: boolean().notNull().default(true),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-}).enableRLS();
+}, (t) => [
+  index().on(t.ownerUserId),
+  check("ad_sources_code_format", sql`${t.code} ~ '^[A-Z]$'`),
+]).enableRLS();
+
+export const sourceMonthCounters = pgTable("source_month_counters", {
+  id: uuid().primaryKey().defaultRandom(),
+  sourceId: uuid().notNull().references(() => adSources.id),
+  codeMonth: text().notNull(), // YYMM in Asia/Ho_Chi_Minh
+  nextSeq: integer().notNull().default(1),
+}, (t) => [
+  unique().on(t.sourceId, t.codeMonth),
+  check("source_month_counters_month_format", sql`${t.codeMonth} ~ '^[0-9]{2}(0[1-9]|1[0-2])$'`),
+  check("source_month_counters_sequence_range", sql`${t.nextSeq} BETWEEN 1 AND 1000`),
+]).enableRLS();

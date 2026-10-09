@@ -46,7 +46,7 @@ Three areas:
 | `sale` (ad runner A/B/C) | Only leads whose source is theirs, message templates, their own report. **Not**: overall payments, licenses, ad-source management, settings |
 | `student` | Only the student area and their own data |
 
-Sign-in is **Google only** (all students use Gmail). After sign-in, route by role: `admin`/`sale` → `/quan-tri`, `student` → `/hoc-vien`. Unknown email → "account not activated" page with a Zalo contact button. Users with more than one role get a "switch area" item in the avatar menu (the client described this as "click the logo, choose Admin or Student").
+Sign-in supports **Google and a passwordless email link** (all students use Gmail). After sign-in, route by role: `admin`/`sale` → `/quan-tri`, `student` → `/hoc-vien`. Unknown email → "account not activated" page with a Zalo contact button. Users with more than one role get a "switch area" item in the avatar menu (the client described this as "click the logo, choose Admin or Student").
 
 ## 4. Page map
 
@@ -58,7 +58,7 @@ Sign-in is **Google only** (all students use Gmail). After sign-in, route by rol
   /dang-ky                  trial sign-up form
   /dang-ky/thanh-cong       thank-you + 2 Zalo community links
   /chinh-sach/[slug]        terms, privacy, refunds
-/dang-nhap                  Google sign-in
+/dang-nhap                  Google or passwordless email sign-in
 (student) /hoc-vien
   /                         overview
   /tai-lieu                 materials (view-only)
@@ -83,10 +83,10 @@ Sign-in is **Google only** (all students use Gmail). After sign-in, route by rol
 
 The course is the focus; the tools are one small section.
 
-1. **Hero** — course for working professionals; primary "Đăng ký 3 buổi học thử", secondary "Xem lộ trình"; visual: glass panel showing progress through the 3 trial lessons (later: real video/screenshots).
-2. **Curriculum** — modules in order (real content comes from the client's course outline sheet).
+1. **Hero + curriculum (one scroll-driven section, `landing/build-story`)** — hero copy with primary "Đăng ký 3 buổi học thử", secondary "Xem lộ trình"; then the 4 curriculum modules (client sheet "Lộ trình học Revit BIM toàn diện") scroll past a sticky 3D "drawing sheet" where a sample 4-storey building assembles step by step: grids/levels → structure → architecture → MEP → clash detection → exploded handover.
+2. **Course journey** — "1 lần đăng ký": 1-on-1 phase (1/4, min 45 days) → advanced courses 2–4 (3/4, online 2 sessions/week); knowledge split 1/3 · 1/3 · 1/3. Then career levels BIM Modeler → Coordinator → Manager.
 3. **9-day trial** — 4 steps: sign up → join Zalo groups → install software → attend 3 lessons.
-4. **Fees & referral offer** — 3 tiers (§7).
+4. **Fees & referral offer** — 4 tiers (§7) + the alumni 30% offer.
 5. **Tools** — 3 small cards (Auto Join…), "included for students".
 6. **Zalo community** — 4 benefits + 2 join buttons (§8).
 7. **FAQ**.
@@ -96,24 +96,27 @@ The reference file implements this order.
 
 ## 6. Student pipeline (draft — confirm with client)
 
-`Mới đăng ký` → `Đã kết bạn Zalo` → `Đã vào 2 nhóm` → `Đã gửi học phí` → `Đang học thử` → `Đã đóng tiền` → `Học chính thức`, plus side branch `Không tiếp tục`.
+`Mới đăng ký` → `Đang tư vấn` (legacy `CHỜ CHỐT SALE`) → `Đang học thử` → `Học chính thức`, plus side branch `Không tiếp tục`. Contact, group membership, fee sent, software readiness and official-Zalo contact are separate checklist timestamps, not kanban stages. Payment and license states are independent.
 
-Badge colors: new = info, in progress = warning, paid / enrolled = success, dropped = muted.
+Badge colors: new = info, consulting / trial = warning, enrolled = success, dropped = muted.
 
 Management list (`/quan-tri/hoc-vien`): table view (default) and kanban by pipeline status; filters for status, source (A/B/C/R), sign-up month, and search by name / phone / email / ID; quick actions: change status, open profile, copy phone, open Zalo (`https://zalo.me/<phone>`).
 
 Student profile (`/quan-tri/hoc-vien/[id]`) replaces the per-student sheet the client duplicates by hand: sign-up answers (occupation, how they heard about RVPY…), status timeline, per-lesson progress, call notes, payments, license, granted documents, and a **"next message"** block suggesting the template for the current status with a copy button.
 
-**Student ID** format: `<source code><sequence>`, e.g. `R21` (R = found by RVPY itself), `A15` (ad runner A). Shown in mono. Generated server-side later.
+**Student ID** format: `<source code><YYMM><three-digit sequence>`, e.g. `R2610021` (R = found by RVPY itself), `A2610007` (ad runner A). Allocate atomically per source and month in `Asia/Ho_Chi_Minh`; keep UUIDs as internal keys. Shown in mono. Long Zalo labels are generated when needed; preserve imported labels/raw exceptions separately.
 
-## 7. Fees & referral offer (confirm base fee with client)
+## 7. Fees & referral offer
 
-Current offer, valid during the 9-day trial:
+Current offer (client poster), valid during the 9-day trial:
+- Signing up within the 9 days: **4.500.000đ**.
 - Fee drops to **3.600.000đ** when the student refers 5 new people who join the 3 free trial lessons.
 - Drops to **2.700.000đ** when 1 of those 5 enrolls.
 - When 2 more referrals enroll, RVPY refunds the 2.700.000đ — the course becomes free.
 
-Public site: show as 3 tiers. Student area (`/hoc-vien/gioi-thieu-ban`): personal referral link + copy button, progress "invited x/5 · enrolled y", current tier. Numbers come from the API; the frontend does not calculate them.
+Alumni thank-you offer: after enrolling, every referred student from the **4th** onward refunds **30%** of the fee, unlimited.
+
+Public site: show as 4 tiers plus the alumni offer. Student area (`/hoc-vien/gioi-thieu-ban`): personal referral link + copy button, progress "invited x/5 · enrolled y", current tier. Numbers come from the API; the frontend does not calculate them.
 
 ## 8. Zalo communities
 
@@ -131,7 +134,7 @@ Status markers: [x] done · [ ] to do.
 
 1. [x] Next.js 16 + Supabase/Drizzle skeleton, DB schema + first migration, auth/permission helpers, `BACKEND_RULES.md`.
 2. [x] Tokens, fonts, light/dark, base `ui` components (shadcn, Radix base), logo, favicons. Dev-only showcase at `/ui-kit`.
-3. [ ] Public home + trial sign-up form wired to `submitLeadSignup` (thank-you page with the 2 Zalo links).
+3. [ ] Public home ([x] landing page) + trial sign-up form wired to `submitLeadSignup` (thank-you page with the 2 Zalo links).
 4. [ ] Supabase project + Google provider; `/dang-nhap`, `/auth/callback`, `/chua-kich-hoat`; app shell + role guards (mock role switcher for dev).
 5. [ ] Management: student list (table + kanban), student profile, status changes, call notes, message templates, Excel export.
 6. [ ] Student area: overview, materials (signed URLs, view-only), software + install guide, progress, referrals.
@@ -140,10 +143,14 @@ Status markers: [x] done · [ ] to do.
 
 ## 10. Open questions for the client
 
-- Base course fee and packages (adult / child?).
+- Resolve conflicting fee sources: the nine-day poster offers 4,500,000 VND, while the legacy formula suggests 5,400,000 VND for birth year < 1990. Confirm which rule takes precedence; no default agreed fee is automated.
+- Resolve conflicting course schedules: landing copy says minimum 45 days and two online sessions/week; the legacy plan totals 50 base days and the screenshot says 1.5-2 months with specialist sessions Saturday at 05:00. Confirm each phase before publishing those claims.
+
+
+- Confirm the observed birth-year fee rule: born before 1990 → 5.400.000đ suggested, otherwise 4.500.000đ. Keep negotiated fees separate.
 - Is the pipeline in §6 correct and complete?
 - Is there a "teaching assistant" role, or only admin + sale?
 - Can a `sale` see how much their own students paid?
 - Is the add-in licensed to every student or only paying ones, and for how long?
 - Online or in-person lessons?
-- Student code sequence: one counter per source (A1, A2… and R1, R2…) or one shared counter?
+- Prioritize confirmation of CHIA %: commission formula, rate basis, settlement period and sale visibility. Codes are already decided: one counter per source/month.

@@ -19,6 +19,9 @@ const PERMISSIONS = {
   "admin-area.view": ["admin", "sale"],
   "students.view": ["admin", "sale"], // sale: own sources only (scoped in queries)
   "students.edit": ["admin", "sale"],
+  "students.create": ["admin", "sale"], // sale: active sources they own only
+  "enrollments.trial": ["admin", "sale"],
+  "enrollments.formal": ["admin"],
   "students.export": ["admin", "sale"],
   "templates.view": ["admin", "sale"],
   "templates.edit": ["admin"],

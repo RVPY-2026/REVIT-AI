@@ -15,7 +15,7 @@ Precedence when things conflict: the project owner's instructions > this documen
 | Runtime | **Next.js 16 App Router**, same app as the frontend | Server Components, Server Actions, Route Handlers. No separate API server |
 | Database | **Postgres on Supabase** | Free tier during development; Pro before go-live (daily backups) |
 | ORM / migrations | **Drizzle ORM + drizzle-kit** | Schema in TS, `casing: "snake_case"`. Driver `postgres` (postgres.js) with `prepare: false` |
-| Sign-in | **Supabase Auth, Google provider only** | Via `@supabase/ssr`. Session refresh in `src/proxy.ts` |
+| Sign-in | **Supabase Auth, Google OAuth + email magic link** | Via `@supabase/ssr`. Session refresh in `src/proxy.ts` |
 | Files | **Supabase Storage**, private buckets | Served through short-lived signed URLs |
 | Validation | **zod** (v4) | Schemas in `src/lib/schemas`, shared with the forms |
 | Excel export | **exceljs**, generated on the server | Same filters and scope as the list it exports |
@@ -61,18 +61,18 @@ src/
 ## 3. Database conventions
 
 - Table names: plural `snake_case`. TS keys: camelCase (mapped by `casing`).
-- Primary keys: `uuid` with `defaultRandom()`. Human IDs (`R21`) are separate unique columns.
+- Primary keys: `uuid` with `defaultRandom()`. Human IDs (`R2610021`) are separate unique columns.
 - Every timestamp is `timestamp({ withTimezone: true })`. Business dates (monthly reports, "sign-up month") are computed in **`Asia/Ho_Chi_Minh`**.
 - Money: `bigint` whole VND (`amountVnd`). No floats, no decimals.
 - Emails are stored **lowercase**. Phones are stored as digits only (`0901234567`). Formatting is the UI's job.
-- Status changes write a row to `student_status_events`. History is never overwritten.
+- Status changes write an enum-validated row to `student_status_events`. History is never overwritten. Trial/formal activation uses dedicated enrollment actions that update CRM and enrollment in the same transaction; kanban only accepts new/consulting/dropped.
 - No hard deletes of students, payments or licenses from the app. Use status (`dropped`, `revoked`) instead.
 - **Every table calls `.enableRLS()`** (§4).
 - Schema change workflow: edit `schema/*.ts` → `pnpm db:generate --name <what>` → review the SQL → `pnpm db:migrate`. Never edit an applied migration, and never use `drizzle-kit push` against the shared database.
 
 ### Student codes
 
-`students.code` = source code + sequence (`A15`, `R21`). Allocated in the same transaction as the insert, using `UPDATE ad_sources SET next_seq = next_seq + 1 … RETURNING`. Never use `max(seq) + 1`. See `submitLeadSignup` in `src/server/actions/leads.ts` for the reference pattern.
+`students.code` = source + YYMM + three-digit sequence (`A2610007`, `R2610021`). Allocate per `(source_id, code_month)` in `source_month_counters` using atomic `INSERT … ON CONFLICT … DO UPDATE … RETURNING`, in the same transaction as the student insert. Business month uses `Asia/Ho_Chi_Minh`; 999 is the explicit monthly capacity. Never use `max(seq) + 1` for live allocation. Initializing counters from an approved import is a separate offline operation. Public and staff-created leads share `src/server/lead-record.ts`.
 
 ---
 
@@ -82,7 +82,7 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 1. **The app connects as the database owner, so RLS does not apply to Drizzle queries.** RLS is enabled on every table **with no policies**. That blocks anyone using the public Supabase key to reach the tables through the REST API. It does **not** protect our own queries. Our protection is rules 2–5.
 2. **Every Server Action, Route Handler and query starts by resolving the caller:** `requireUser()` / `requirePermission("…")` from `src/server/auth/session.ts`. Query functions take `user: SessionUser` as their first argument, and never read the session on their own.
-3. **Every query that touches `students`, or joins to it, includes `studentScope(user)`.** This is what limits sale A to their own leads. A query without a scope is a bug, even if the page that calls it is admin-only.
+3. **Every query that touches `students`, or joins to it, includes `studentScope(user, area)` with the area chosen by server code. `"management"` uses admin/source scope; `"student"` restricts to the linked student even for multi-role accounts. No default area is allowed.** This is what limits sale A to their own leads. A query without a scope is a bug, even if the page that calls it is admin-only.
 4. **Admin-only data** (payments, licenses, ad sources, settings, audit log) is checked with `requirePermission`, because the caller's scope is not enough on its own.
 5. **Never return more columns than the screen needs.** Use explicit `select({ … })`. Never send a whole `students` row to a `sale` screen if it carries fields they shouldn't see.
 6. Permissions are declared **once** in `src/lib/auth/permissions.ts`. Add new ones there, then use them in both the UI (`can`) and the server (`requirePermission`).
@@ -91,7 +91,7 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 ### Sign-in flow
 
-1. `/dang-nhap` → `signInWithOAuth({ provider: "google", redirectTo: <origin>/auth/callback?next=… })`.
+1. `/dang-nhap` → Google OAuth or `signInWithOtp({ email, options: { emailRedirectTo: <origin>/auth/callback?next=… } })` for a passwordless email link.
 2. `/auth/callback` → `exchangeCodeForSession(code)` → `getCurrentUser()`.
 3. No `users` row (or no roles) → `/chua-kich-hoat` ("tài khoản chưa được kích hoạt" + Zalo button). Otherwise → `homePathFor(user)`, or the `next` path if it starts with `/`.
 4. `users` rows are created **before** first sign-in: by an admin for staff, or by "activate student" for a lead (sets `students.userId`, adds role `student`). The first sign-in links `authUserId`.
@@ -132,9 +132,9 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 ## 8. Payments, licenses, referrals (designed now, built later)
 
-- **Payments** are entered by an admin for now. Later a QR gateway webhook (`/api/webhooks/payments`) verifies the signature, then inserts with `externalRef` as the idempotency key (unique), then advances the student to `paid`.
-- **Licenses** are keyed by Google email. The add-in calls `GET /api/license/check?email=…&product=…` with an add-in API key, and gets back `{ active, expiresAt }` only. A 15-day trial and paid renewal will be specified in a later section.
-- **Referral tiers** (CLAUDE.md §7) are computed on the server from `students.referredById` + status. The frontend shows the result and never calculates tiers.
+- **Payments** are entered by an admin for now. Later a QR gateway webhook (`/api/webhooks/payments`) verifies the signature, then inserts with `externalRef` as the unique receipt reference. Receipt confirmation, formal enrollment and license grants are separate operations. `payments.kind` is `payment` or `refund`; amounts stay positive. The agreed fee/note live on `enrollments`, and fee edits are recorded in `audit_log`.
+- **Licenses** are keyed by Google email. The future add-in check must verify the user's Google identity and derive their email from it; caller-supplied email or an embedded API key alone is not identity proof. Return `{ active, expiresAt }` only. A 15-day trial and paid renewal will be specified in a later section.
+- **Referrals v1:** count `students.referredById` on the server to show invitations; this is not qualified trial attendance. Admin adjusts the agreed fee manually. Qualification, automatic discounts/refunds and commission calculations are deferred. Agency bands are derived from referral counts, not stored as roles. The frontend never calculates financial benefits.
 
 ---
 
@@ -154,9 +154,11 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 | `pnpm dev` | Run the app (mock mode if `NEXT_PUBLIC_USE_MOCK=true`) |
 | `pnpm typecheck` | `next typegen` + `tsc --noEmit` — run before every commit |
 | `pnpm lint` | ESLint |
+| `pnpm test` | Backend unit tests |
 | `pnpm db:generate --name <x>` | Create a migration from schema changes |
 | `pnpm db:migrate` | Apply migrations (uses `DATABASE_URL_DIRECT`) |
-| `pnpm db:seed` | Insert source `R` and starter templates |
+| `pnpm db:seed` | Insert source `R`, foundation lesson templates and starter messages |
+| `pnpm db:staff <private-file>` | Bootstrap approved admin/sale accounts and owned sources |
 | `pnpm db:studio` | Browse the database |
 
 ---

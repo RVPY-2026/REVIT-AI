@@ -1,5 +1,7 @@
-import { bigint, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { licenseStatusEnum, paymentMethodEnum } from "./enums";
+import { sql } from "drizzle-orm";
+import { bigint, check, foreignKey, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { licenseStatusEnum, paymentKindEnum, paymentMethodEnum } from "./enums";
+import { enrollments } from "./learning";
 import { students } from "./students";
 import { users } from "./users";
 
@@ -12,6 +14,10 @@ export const payments = pgTable(
       .notNull()
       .references(() => students.id),
     amountVnd: bigint({ mode: "number" }).notNull(),
+    enrollmentId: uuid(), // nullable for unreconciled legacy receipts
+    kind: paymentKindEnum().notNull().default("payment"), // positive amounts; kind determines the sign
+    voidedAt: timestamp({ withTimezone: true }),
+    voidReason: text(),
     method: paymentMethodEnum().notNull().default("bank_transfer"),
     paidAt: timestamp({ withTimezone: true }).notNull(),
     note: text(),
@@ -19,7 +25,9 @@ export const payments = pgTable(
     recordedById: uuid().references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index().on(t.studentId), index().on(t.paidAt)],
+  (t) => [index().on(t.studentId), index().on(t.enrollmentId), index().on(t.paidAt),
+    foreignKey({ columns: [t.enrollmentId, t.studentId], foreignColumns: [enrollments.id, enrollments.studentId], name: "payments_enrollment_student_fk" }),
+    check("payments_amount_positive", sql`${t.amountVnd} > 0`)],
 ).enableRLS();
 
 /** Add-in licenses, keyed by the Google email the add-in signs in with. Admin-only. */
