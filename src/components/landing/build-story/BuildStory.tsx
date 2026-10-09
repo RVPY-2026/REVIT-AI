@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "cn";
-import type { BuildingScene } from "./building-scene";
+import type { BuildingScene, SceneTheme } from "./building-scene";
 import { MEP_LEGEND, STORY_STEPS } from "./story-steps";
 
 const STEP_COUNT = STORY_STEPS.length + 1; // + the intro
@@ -55,8 +55,11 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
       }
     }
 
-    const isDark = () => document.documentElement.classList.contains("dark");
-    const themeObserver = new MutationObserver(() => scene?.setTheme(isDark()));
+    const sceneTheme = (): SceneTheme => {
+      const cl = document.documentElement.classList;
+      return cl.contains("blueprint") ? "blueprint" : cl.contains("dark") ? "dark" : "light";
+    };
+    const themeObserver = new MutationObserver(() => scene?.setTheme(sceneTheme()));
     themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
@@ -77,7 +80,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
       .then(({ createBuildingScene }) => {
         if (disposed) return;
         scene = createBuildingScene(canvas, labelLayer, {
-          dark: isDark(),
+          theme: sceneTheme(),
           reducedMotion,
         });
         const box = canvas.getBoundingClientRect();
@@ -120,7 +123,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
         {/* Drawing sheet with the 3D model. Sticky for the whole story. */}
         <div
           ref={stageRef}
-          className="sticky top-0 z-10 -mx-4 h-[50svh] border-y border-border bg-background min-[521px]:-mx-6 lg:col-start-2 lg:row-span-7 lg:row-start-1 lg:top-16 lg:mx-0 lg:h-[calc(100svh-4rem)] lg:self-start lg:border-0 lg:bg-transparent lg:py-6"
+          className="sticky top-16 z-10 -mx-4 transition-[top] duration-300 max-lg:[html[data-header-hidden]_&]:top-0 h-[50svh] border-y border-border bg-background min-[521px]:-mx-6 lg:col-start-2 lg:row-span-7 lg:row-start-1 lg:top-16 lg:mx-0 lg:-mr-[clamp(0px,calc((100vw-1280px)/2-8px),160px)] lg:h-[calc(100svh-4rem)] lg:self-start lg:border-0 lg:bg-transparent lg:py-6"
         >
           <div className="relative size-full overflow-hidden bg-background lg:rounded-2xl lg:border lg:border-border lg:bg-background/80">
             <PaperGrid />
@@ -211,8 +214,24 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
           <article
             key={step.stage}
             data-step={i + 1}
-            className="flex min-h-[80svh] items-end pb-8 lg:col-start-1 lg:min-h-svh lg:items-center lg:pb-0"
+            className="relative flex min-h-[80svh] items-end pb-8 lg:col-start-1 lg:min-h-svh lg:items-center lg:pb-0 lg:pl-10 xl:pl-12"
           >
+            {/* Timeline rail: one continuous line down the copy column, lit on the active step. */}
+            <span aria-hidden className="absolute inset-y-0 left-0 hidden w-px bg-foreground/10 lg:block" />
+            <span
+              aria-hidden
+              className={cn(
+                "absolute inset-y-0 left-0 hidden w-px origin-top bg-primary transition-transform duration-500 lg:block",
+                active >= i + 1 ? "scale-y-100" : "scale-y-0",
+              )}
+            />
+            <span
+              aria-hidden
+              className={cn(
+                "absolute top-1/2 left-0 hidden size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border transition-colors duration-300 lg:block",
+                active === i + 1 ? "border-primary bg-primary" : "border-foreground/30 bg-background",
+              )}
+            />
             <div
               id={i === 0 ? "lo-trinh" : undefined}
               className={cn(
@@ -220,11 +239,17 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
                 active === i + 1 ? "lg:opacity-100" : "lg:opacity-35",
               )}
             >
+              <span
+                aria-hidden
+                className="-mb-2 hidden font-mono text-[128px] leading-[.85] font-medium tracking-[-.04em] text-transparent select-none [-webkit-text-stroke:1px_var(--color-primary)] lg:block xl:text-[160px]"
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
               <p className="font-mono text-[13px] tracking-[.08em] text-primary uppercase">{step.module}</p>
               <h2 className="text-[28px] font-light tracking-[-.01em] lg:text-[40px]">
                 {step.title} <strong className="font-medium">{step.emphasis}</strong>
               </h2>
-              <ul className="grid gap-2.5 text-muted-foreground">
+              <ul className="grid gap-2.5 text-muted-foreground lg:text-[17px]">
                 {step.points.map((p) => (
                   <li key={p} className="grid grid-cols-[16px_1fr] gap-3">
                     <span aria-hidden className="mt-[11px] h-px w-4 bg-primary" />

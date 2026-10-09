@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/icons/logo";
+import { TitleBlock } from "@/components/layout/TitleBlock";
 import { ROUTES, SITE, ZALO_GROUPS } from "@/lib/constants";
 
 const COLUMNS = [
@@ -62,9 +63,20 @@ export function PublicFooter() {
             </div>
           ))}
         </div>
-        <div className="flex flex-wrap justify-between gap-2.5 border-t border-border pt-5 pb-8 text-[13px] text-muted-foreground">
-          <span>© {SITE.studio}.</span>
-          <span>Revit là thương hiệu của Autodesk, Inc.</span>
+        <div className="flex flex-wrap items-end justify-between gap-5 border-t border-border pt-5 pb-24 text-[13px] text-muted-foreground">
+          <div className="grid gap-1">
+            <span>© {SITE.studio}.</span>
+            <span>Revit là thương hiệu của Autodesk, Inc.</span>
+          </div>
+          {/* Sheet title block, bottom-right like a drawing. */}
+          <TitleBlock
+            decorative
+            rows={[
+              ["Dự án", `${SITE.studio} · RVPY`],
+              ["Tờ", "01 / 01"],
+              ["Cao độ", "±0.000"],
+            ]}
+          />
         </div>
       </div>
     </footer>

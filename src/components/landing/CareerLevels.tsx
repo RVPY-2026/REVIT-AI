@@ -79,11 +79,22 @@ export function CareerLevels() {
 
         <Reveal delay={120}>
           <div ref={ref} className="relative pl-[76px]">
-            {/* Roof parapet */}
-            <div
+            {/* Pitched roof: makes the stack read as a house at a glance. */}
+            <svg
               aria-hidden
-              className="mx-3 h-3 border-x border-t border-foreground/40"
-            />
+              viewBox="0 0 100 40"
+              preserveAspectRatio="none"
+              className="-mx-2 -mb-px block h-12 w-[calc(100%+1rem)] text-foreground/40"
+            >
+              <path
+                d="M0 39.5 50 1 100 39.5Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
             <ol aria-label="Lộ trình nghề nghiệp BIM">
               {LEVELS.map((l, i) => {
                 const on = i === active;
@@ -97,15 +108,11 @@ export function CareerLevels() {
                         setTouched(true);
                         setActive(i);
                       }}
-                      onMouseEnter={() => {
-                        setTouched(true);
-                        setActive(i);
-                      }}
                       className={cn(
                         "grid w-full gap-1 border-x border-b-2 px-5 py-4 text-left transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
                         on
                           ? "border-x-primary border-b-primary bg-primary-soft"
-                          : "border-x-foreground/40 border-b-foreground/40",
+                          : "cursor-pointer border-x-foreground/40 border-b-foreground/40 hover:bg-foreground/[.04]",
                       )}
                     >
                       <span className="flex items-baseline justify-between gap-3">
@@ -194,7 +201,7 @@ export function CareerLevels() {
               <rect width="100%" height="100%" fill="url(#career-ground)" />
             </svg>
             <p className="mt-3 font-mono text-[12px] text-muted-foreground">
-              Mặt cắt nghề nghiệp · rê chuột hoặc chạm vào từng tầng
+              Mặt cắt nghề nghiệp · bấm vào từng tầng để xem
             </p>
           </div>
         </Reveal>

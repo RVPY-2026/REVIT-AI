@@ -2,11 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Blueprint is a dark-family theme: every `dark:` utility applies to it too. */
+@custom-variant dark (&:is(.dark *, .blueprint *));
 
 /*
  * "Magenta Night" tokens — values from FRONTEND_RULES §3.1 and
- * design/reference/rvpy-landing.html. Names follow shadcn so components work as-is.
  * Change values here only with the project owner's approval (FRONTEND_RULES §9).
  */
 :root {
@@ -41,6 +41,8 @@
     radial-gradient(55% 75% at 88% 8%, rgba(255, 61, 132, 0.2), transparent 62%),
     radial-gradient(65% 80% at 100% 100%, rgba(194, 24, 91, 0.22), transparent 62%),
     linear-gradient(120deg, #fdf9fb 0%, #f7e8f0 100%);
+  --gradient-band: linear-gradient(110deg, #3b0d36, #a3124f 60%, #e0186c);
+  --on-band: var(--primary-deep); /* text on the white button inside the CTA band */
   --shadow-primary: 0 8px 22px -12px rgba(194, 24, 91, 0.7);
 
   --radius: 10px; /* buttons, inputs */
@@ -82,9 +84,55 @@
     radial-gradient(55% 75% at 88% 8%, rgba(214, 70, 140, 0.5), transparent 62%),
     radial-gradient(65% 80% at 100% 100%, rgba(196, 20, 90, 0.62), transparent 62%),
     linear-gradient(120deg, #160a24 0%, #3b0d36 58%, #7d1048 100%);
+  --gradient-band: linear-gradient(110deg, #3b0d36, #a3124f 60%, #e0186c);
   --shadow-primary: 0 8px 24px -10px rgba(255, 61, 132, 0.85);
 
   color-scheme: dark;
+}
+
+/*
+ * "Blueprint" easter egg (type "blueprint" anywhere on the site): cyanotype blue paper, white
+ * ink, pale cyan accent, drafting grid on the body. Not offered in the theme toggle.
+ */
+.blueprint {
+  --background: #0c3a75;
+  --background-2: rgba(3, 22, 56, 0.34);
+  --card: rgba(255, 255, 255, 0.06);
+  --popover: #0d3a78;
+  --foreground: #eef6ff;
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: #b4cdee;
+  --border: rgba(255, 255, 255, 0.24);
+  --input: rgba(255, 255, 255, 0.3);
+  --primary: #8fd8ff;
+  --primary-deep: #3d9fe6;
+  --primary-soft: rgba(143, 216, 255, 0.16);
+  --primary-foreground: #04204a;
+  --secondary: rgba(255, 255, 255, 0.08);
+  --accent: rgba(143, 216, 255, 0.16);
+  --glass: rgba(10, 48, 100, 0.66);
+  --ring: #8fd8ff;
+  --success: #6ee7b7;
+  --warning: #fcd34d;
+  --destructive: #ff9a9a;
+  --info: #b6d4ff;
+
+  --gradient-hero: linear-gradient(160deg, #0f4a94 0%, #0a2f66 100%);
+  --gradient-band: linear-gradient(110deg, #0a2f66, #1560b8 70%, #2a86e0);
+  --on-band: #0a2f66;
+  --shadow-primary: 0 8px 24px -10px rgba(143, 216, 255, 0.55);
+
+  color-scheme: dark;
+}
+/* Drafting-paper grid: 16px minor, 80px major. */
+.blueprint body {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+  background-attachment: fixed;
 }
 
 @theme inline {
@@ -146,7 +194,7 @@
   background: linear-gradient(90deg, var(--primary-deep), var(--primary));
 }
 @utility bg-band {
-  background: linear-gradient(110deg, #3b0d36, #a3124f 60%, #e0186c);
+  background: var(--gradient-band);
 }
 @utility glass {
   background: var(--glass);
@@ -179,6 +227,15 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    *,
+    *::before,
+    *::after {
+      transition-property: color, background-color, border-color, outline-color, fill, stroke, box-shadow;
+      transition-duration: 240ms;
+      transition-timing-function: ease-in-out;
+    }
   }
   html {
     @apply font-sans;

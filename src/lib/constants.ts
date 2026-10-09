@@ -3,6 +3,12 @@
 export const SITE = {
   name: "RVPY",
   studio: "Ocean Studio",
+  /** Absolute origin for metadata, OG images, sitemap. Set NEXT_PUBLIC_SITE_URL once the domain exists. */
+  url:
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000"),
 } as const;
 
 /** The two Zalo community groups (CLAUDE.md §8). Students should join both. */
@@ -17,7 +23,35 @@ export const ZALO_GROUPS = [
   },
 ] as const;
 
+/** Registration contact shown after a trial signup, copied from the current Google Form. */
+export const ZALO_REGISTRATION_CONTACT = {
+  label: "RVPY Ocean Studio Admin",
+  phone: "0969071561",
+  href: "https://zalo.me/0969071561",
+} as const;
+
+export const LEAD_CHANNEL_OPTIONS = [
+  "Tự tìm hiểu",
+  "Cộng đồng Zalo",
+  "TikTok",
+  "YouTube",
+  "Trang Facebook RVPY Ocean Studio",
+  "Bài viết Facebook",
+  "Tin nhắn quảng cáo Facebook",
+  "Được người khác giới thiệu",
+  "Khác",
+] as const;
+
+export const OCCUPATION_OPTIONS = ["Sinh viên", "Đang đi làm"] as const;
+
 export const zaloChatUrl = (phone: string) => `https://zalo.me/${phone.replace(/\D/g, "")}`;
+
+/**
+ * Phone of the consulting Zalo account (CLAUDE.md §2: not the official account students add after
+ * paying). Set NEXT_PUBLIC_ZALO_CONSULT_PHONE per environment; when empty the floating button
+ * falls back to the community groups.
+ */
+export const ZALO_CONSULT_PHONE = process.env.NEXT_PUBLIC_ZALO_CONSULT_PHONE ?? "";
 
 /**
  * Fee offer during the 9-day trial (CLAUDE.md §7, client poster "Ưu đãi học phí trong 09 ngày").
@@ -68,6 +102,7 @@ export const HOME_NAV = [
 export const ROUTES = {
   signup: "/dang-ky",
   signIn: "/dang-nhap",
+  account: "/tai-khoan",
 } as const;
 
 // --- Student pipeline (CLAUDE.md §6). Order = kanban column order. ---
@@ -90,4 +125,5 @@ export const ROLE_LABELS = {
   admin: "Quản trị",
   sale: "Sale",
   student: "Học viên",
+  user: "Tài khoản thường",
 } as const;

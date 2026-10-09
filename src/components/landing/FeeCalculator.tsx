@@ -124,67 +124,99 @@ export function FeeCalculator() {
         </div>
       </div>
 
-      {/* Tier ladder */}
-      <ol className="grid content-center gap-2 border-t border-border bg-background-2/60 p-6 md:p-10 lg:border-t-0 lg:border-l">
-        {REFERRAL_TIERS.map((t, i) => {
-          const passed = i < tier;
-          const current = i === tier;
-          return (
-            <li
-              key={t.title}
-              className={cn(
-                "grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border p-3.5 transition-colors duration-300",
-                current ? "border-primary bg-card" : "border-transparent",
-              )}
-            >
-              <span
-                className={cn(
-                  "grid size-8 place-items-center rounded-full border font-mono text-[12px] transition-colors duration-300",
-                  current &&
-                    "border-primary bg-primary text-primary-foreground",
-                  passed && "border-primary text-primary",
-                  !current && !passed && "border-border text-muted-foreground",
-                )}
-              >
-                {passed ? (
-                  <Check
-                    strokeWidth={2.25}
-                    className="size-4"
-                    aria-label="Đã đạt"
-                  />
-                ) : (
-                  String(i + 1).padStart(2, "0")
-                )}
-              </span>
-              <span className="grid">
-                <span
+      {/* Tier ladder drawn as a Revit schedule: header band, hairline grid, one row per tier. */}
+      <div className="grid content-center gap-3 border-t border-border bg-background-2/60 p-6 md:p-10 lg:border-t-0 lg:border-l">
+        <table className="w-full border-collapse border border-foreground/40 bg-card text-left">
+          <caption className="mb-2 text-left font-mono text-[12px] text-muted-foreground">
+            Bảng thống kê học phí
+          </caption>
+          <thead>
+            <tr className="border-b border-foreground/40 bg-foreground/[.04] font-mono text-[12px] text-muted-foreground">
+              <th scope="col" className="w-10 border-r border-border px-2 py-2 font-normal">
+                Bậc
+              </th>
+              <th scope="col" className="border-r border-border px-3 py-2 font-normal">
+                Điều kiện
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-normal">
+                Học phí
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {REFERRAL_TIERS.map((t, i) => {
+              const passed = i < tier;
+              const current = i === tier;
+              return (
+                <tr
+                  key={t.title}
+                  aria-current={current ? "true" : undefined}
                   className={cn(
-                    "text-[15px] font-medium",
-                    !current && !passed && "text-muted-foreground",
+                    "border-b border-border transition-colors duration-300",
+                    current ? "bg-primary-soft" : "",
                   )}
                 >
-                  {t.title}
-                </span>
-                <span className="text-[13px] text-muted-foreground">
-                  {t.condition}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  "text-right font-mono text-[13px] tabular-nums",
-                  current
-                    ? "text-primary"
-                    : passed
-                      ? "text-muted-foreground line-through"
-                      : "text-muted-foreground",
-                )}
+                  <td
+                    className={cn(
+                      "border-r border-border px-2 py-3 font-mono text-[12px]",
+                      current ? "font-medium text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {passed ? (
+                      <Check
+                        strokeWidth={2.25}
+                        className="size-4 text-primary"
+                        aria-label="Đã đạt"
+                      />
+                    ) : (
+                      String(i + 1).padStart(2, "0")
+                    )}
+                  </td>
+                  <td className="border-r border-border px-3 py-3">
+                    <span
+                      className={cn(
+                        "block text-[15px] font-medium",
+                        !current && !passed && "text-muted-foreground",
+                      )}
+                    >
+                      {t.title}
+                    </span>
+                    <span className="block text-[13px] text-muted-foreground">
+                      {t.condition}
+                    </span>
+                  </td>
+                  <td
+                    className={cn(
+                      "px-3 py-3 text-right font-mono text-[13px] whitespace-nowrap tabular-nums",
+                      current
+                        ? "font-medium text-primary"
+                        : passed
+                          ? "text-muted-foreground line-through"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {t.feeVnd === 0 ? "0đ" : formatVnd(t.feeVnd)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="bg-foreground/[.04]">
+              <th
+                scope="row"
+                colSpan={2}
+                className="border-r border-border px-3 py-2.5 text-left font-mono text-[12px] font-normal text-muted-foreground"
               >
-                {t.feeVnd === 0 ? "0đ" : formatVnd(t.feeVnd)}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+                Học phí của bạn
+              </th>
+              <td className="px-3 py-2.5 text-right font-mono text-[14px] font-medium text-primary tabular-nums">
+                {fee === 0 ? "0đ" : formatVnd(fee)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }

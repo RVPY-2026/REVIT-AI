@@ -2,13 +2,13 @@
 
 ## How to work in this repo
 
-1. **Frontend work:** read [FRONTEND_RULES.md](FRONTEND_RULES.md) in full first, and open [design/reference/rvpy-landing.html](design/reference/rvpy-landing.html) to see the tokens applied. Take values and rules from it; don't copy its CSS/JS (FRONTEND_RULES §10).
+1. **Frontend work:** read [FRONTEND_RULES.md](FRONTEND_RULES.md) in full first. Take token values from `src/app/globals.css` and see how things look in the UI kit at `/ui-kit` (FRONTEND_RULES §10).
 2. **Backend work** (`src/server`, `src/proxy.ts`, `src/app/api`, auth, database): read [BACKEND_RULES.md](BACKEND_RULES.md) in full first. §4 (authorization) is non-negotiable.
 3. Check current library docs (Context7, or the bundled Next.js docs in `node_modules/next/dist/docs/`) before using an API — especially Next.js 16 App Router (`proxy.ts`, Cache Components), Tailwind v4, shadcn/ui, Supabase SSR, Drizzle.
 4. **Stack:** one Next.js app = frontend + backend, Supabase (Postgres + Google sign-in + Storage), Drizzle ORM, zod, Vercel. pnpm. Run `pnpm typecheck && pnpm lint` before committing.
 5. UI work can run without a database: `NEXT_PUBLIC_USE_MOCK=true` serves `src/mocks` through `src/lib/api` (FRONTEND_RULES §7).
 6. Never commit real student data, the client's Google Sheet links, or secrets. Mocks use fake names.
-7. If the design changes, update FRONTEND_RULES §3 **and** the reference file.
+7. If the design changes, update `globals.css`, FRONTEND_RULES §3 **and** the UI kit (`/ui-kit`). New shared components or patterns go into the UI kit too.
 8. All code, comments and docs in English. All UI copy in Vietnamese.
 
 ---
@@ -45,8 +45,9 @@ Three areas:
 | `admin` | Everything in the management area; can also view the student area |
 | `sale` (ad runner A/B/C) | Only leads whose source is theirs, message templates, their own report. **Not**: overall payments, licenses, ad-source management, settings |
 | `student` | Only the student area and their own data |
+| `user` | Public website only; assigned automatically on first successful sign-in |
 
-Sign-in supports **Google and a passwordless email link** (all students use Gmail). After sign-in, route by role: `admin`/`sale` → `/quan-tri`, `student` → `/hoc-vien`. Unknown email → "account not activated" page with a Zalo contact button. Users with more than one role get a "switch area" item in the avatar menu (the client described this as "click the logo, choose Admin or Student").
+Sign-in supports **Google and a passwordless email link**. Anyone who completes sign-in gets a public `user` account automatically; it grants no access to management or student data. Approved `admin`/`sale` accounts route to `/quan-tri`, and `student` accounts route to `/hoc-vien`. Disabled or inconsistent app accounts see a support page with a Zalo contact button. Users with more than one role get a "switch area" item in the avatar menu (the client described this as "click the logo, choose Admin or Student").
 
 ## 4. Page map
 
@@ -59,6 +60,7 @@ Sign-in supports **Google and a passwordless email link** (all students use Gmai
   /dang-ky/thanh-cong       thank-you + 2 Zalo community links
   /chinh-sach/[slug]        terms, privacy, refunds
 /dang-nhap                  Google or passwordless email sign-in
+/tai-khoan                  signed-in account details
 (student) /hoc-vien
   /                         overview
   /tai-lieu                 materials (view-only)
@@ -92,7 +94,7 @@ The course is the focus; the tools are one small section.
 7. **FAQ**.
 8. **CTA band**, multi-column footer, floating Zalo button.
 
-The reference file implements this order.
+The landing page (`src/app/(public)/page.tsx`) implements this order.
 
 ## 6. Student pipeline (draft — confirm with client)
 
@@ -153,4 +155,5 @@ Status markers: [x] done · [ ] to do.
 - Can a `sale` see how much their own students paid?
 - Is the add-in licensed to every student or only paying ones, and for how long?
 - Online or in-person lessons?
+- Landing copy written without a client source, live on the home page until confirmed: "45 minutes per 1-on-1 session"; "RVPY contacts you on Zalo the same day"; FAQ system requirements (Windows 10/11 64-bit, ~10 GB installer, Revit 2025–2027); tool names "Đánh số tự động" and "Xuất bản vẽ hàng loạt" (only Auto Join is confirmed); the FAQ answer to "online or in-person".
 - Prioritize confirmation of CHIA %: commission formula, rate basis, settlement period and sale visibility. Codes are already decided: one counter per source/month.

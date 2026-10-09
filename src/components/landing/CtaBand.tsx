@@ -18,7 +18,7 @@ export function CtaBand() {
         <Button
           asChild
           size="lg"
-          className="bg-white! bg-none! text-primary-deep shadow-[0_10px_30px_-12px_rgba(0,0,0,.5)]!"
+          className="bg-white! bg-none! text-(--on-band) shadow-[0_10px_30px_-12px_rgba(0,0,0,.5)]!"
         >
           <Link href={ROUTES.signup}>Đăng ký học thử</Link>
         </Button>

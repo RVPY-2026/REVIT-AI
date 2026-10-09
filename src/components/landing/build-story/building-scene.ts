@@ -45,6 +45,9 @@ type LabelTone = "bubble" | "tag" | "dim" | "alert" | "ok";
 
 interface Label {
   el: HTMLElement;
+  tone: LabelTone;
+  /** Measured box, cached once laid out (tags have fixed text). */
+  box?: { w: number; h: number };
   anchor: THREE.Object3D;
   local: THREE.Vector3;
   t0: number;
@@ -82,7 +85,9 @@ interface Palette {
 }
 
 // Drawing palettes: light = ink on paper, dark = blueprint on plum. Hues follow the Magenta Night tokens.
-const PALETTES: Record<"light" | "dark", Palette> = {
+export type SceneTheme = "light" | "dark" | "blueprint";
+
+const PALETTES: Record<SceneTheme, Palette> = {
   light: {
     face: 0xffffff,
     wall: 0xf6ebf1,
@@ -114,6 +119,23 @@ const PALETTES: Record<"light" | "dark", Palette> = {
     glassFinal: 0x3a4766,
     datum: 0xff3d84,
     hemiGround: 0x150a1b,
+  },
+  // Cyanotype: white ink on blue paper, pale cyan accent (the "blueprint" easter egg).
+  blueprint: {
+    face: 0x14509a,
+    wall: 0x114690,
+    core: 0x1a5aa8,
+    site: 0x0e3f84,
+    roof: 0x1d62b2,
+    water: 0x1a58a6,
+    ink: 0xeef6ff,
+    inkOpacity: 0.8,
+    accent: 0x8fd8ff,
+    glass: 0x8fd8ff,
+    glassOpacity: 0.18,
+    glassFinal: 0x4d80c4,
+    datum: 0x8fd8ff,
+    hemiGround: 0x0a2f66,
   },
 };
 
@@ -188,7 +210,7 @@ function withAxes<T extends THREE.BufferGeometry>(geo: T): T {
 
 export interface BuildingScene {
   setProgress(t: number): void;
-  setTheme(dark: boolean): void;
+  setTheme(theme: SceneTheme): void;
   resize(width: number, height: number): void;
   start(): void;
   stop(): void;
@@ -198,7 +220,7 @@ export interface BuildingScene {
 export function createBuildingScene(
   canvas: HTMLCanvasElement,
   labelLayer: HTMLElement,
-  opts: { dark: boolean; reducedMotion: boolean },
+  opts: { theme: SceneTheme; reducedMotion: boolean },
 ): BuildingScene {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
@@ -377,7 +399,7 @@ export function createBuildingScene(
     el.textContent = text;
     el.setAttribute("aria-hidden", "true");
     labelLayer.appendChild(el);
-    labels.push({ el, anchor, local: new THREE.Vector3(...local), t0, t1, update: update && ((t) => update(el, t)) });
+    labels.push({ el, tone, anchor, local: new THREE.Vector3(...local), t0, t1, update: update && ((t) => update(el, t)) });
   }
 
   /** Spread n items over [a, b] (absolute time) with each item lasting `dur`. */
@@ -1077,11 +1099,11 @@ export function createBuildingScene(
   }
 
   // ============ Theme ============
-  let palette = PALETTES[opts.dark ? "dark" : "light"];
+  let palette = PALETTES[opts.theme];
   const glassTint = new THREE.Color();
   const glassFinalTint = new THREE.Color();
-  function applyTheme(dark: boolean) {
-    palette = PALETTES[dark ? "dark" : "light"];
+  function applyTheme(theme: SceneTheme) {
+    palette = PALETTES[theme];
     mat.face.color.set(palette.face);
     mat.wall.color.set(palette.wall);
     mat.core.color.set(palette.core);
@@ -1103,7 +1125,7 @@ export function createBuildingScene(
     mat.water.color.set(palette.water);
     hemi.groundColor.set(palette.hemiGround);
   }
-  applyTheme(opts.dark);
+  applyTheme(opts.theme);
 
   // ============ Camera keyframes, centred on each step (t = s + 0.5) ============
   const clashFocus = new THREE.Vector3(5, clashY, 1.6);
@@ -1195,7 +1217,7 @@ export function createBuildingScene(
     mat.grid.opacity = 0.75 * datums;
     mat.datum.opacity = 0.55 * datums;
     mat.dim.opacity = 0.6 * datums;
-    mat.ghost.opacity = (opts.dark ? 0.32 : 0.28) * (1 - smooth(t, 1.0, 1.5));
+    mat.ghost.opacity = (opts.theme === "light" ? 0.28 : 0.32) * (1 - smooth(t, 1.0, 1.5));
     ghost.visible = mat.ghost.opacity > 0.002;
 
     // Clash: beam turns red, duct drops below it, marker turns green.
@@ -1309,7 +1331,10 @@ export function createBuildingScene(
   const proj = new THREE.Vector3();
   let width = 1;
   let height = 1;
+  const tags: { l: Label; x: number; y: number }[] = [];
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
   function updateLabels(t: number) {
+    tags.length = 0;
     for (const l of labels) {
       const on = t >= l.t0 && t <= l.t1 && l.anchor.visible;
       if (on) {
@@ -1318,11 +1343,33 @@ export function createBuildingScene(
         l.anchor.localToWorld(proj);
         proj.project(camera);
         const visible = proj.z < 1;
-        l.el.style.transform = `translate(${((proj.x + 1) / 2) * width}px, ${((1 - proj.y) / 2) * height}px) translate(-50%, -50%)`;
+        const x = ((proj.x + 1) / 2) * width;
+        const y = ((1 - proj.y) / 2) * height;
         l.el.style.opacity = visible ? "1" : "0";
+        l.box ??= l.tone === "tag" && l.el.offsetWidth ? { w: l.el.offsetWidth, h: l.el.offsetHeight } : undefined;
+        if (l.box && visible) tags.push({ l, x, y });
+        else l.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
       } else if (l.el.style.opacity !== "0") {
         l.el.style.opacity = "0";
       }
+    }
+
+    // Keep tags inside the sheet and off each other: on a phone the level tags and the survey
+    // point land in the same corner. Placed top to bottom, each tag only ever steps down, so the
+    // level tags keep their storey order.
+    placed.length = 0;
+    tags.sort((a, b) => a.y - b.y);
+    for (const { l, x: x0, y: y0 } of tags) {
+      const { w, h } = l.box!;
+      const x = Math.min(Math.max(x0, w / 2 + 8), width - w / 2 - 8);
+      let y = y0;
+      for (const p of placed) {
+        if (Math.abs(p.x - x) < (p.w + w) / 2 + 4 && Math.abs(p.y - y) < (p.h + h) / 2 + 2) {
+          y = p.y + (p.h + h) / 2 + 3;
+        }
+      }
+      placed.push({ x, y, w, h });
+      l.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
     }
   }
 

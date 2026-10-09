@@ -36,15 +36,17 @@ export function Faq() {
       id="hoi-dap"
       className="scroll-mt-16 bg-background-2 py-14 md:py-22"
     >
-      <div className="content">
-        <Reveal>
+      <div className="content grid gap-x-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
+        <Reveal className="lg:sticky lg:top-24">
           <SectionHeading
             eyebrow="Câu hỏi thường gặp"
             title="Hỏi trước"
             emphasis="khi đăng ký."
-          />
+          >
+            Chưa thấy câu bạn cần? Nhắn RVPY trong nhóm Zalo cộng đồng.
+          </SectionHeading>
         </Reveal>
-        <Reveal className="max-w-[860px]">
+        <Reveal>
           <Accordion
             type="single"
             collapsible
@@ -58,9 +60,18 @@ export function Faq() {
                 className="rounded-2xl border border-border bg-card px-5 not-last:border-b"
               >
                 <AccordionTrigger className="py-4 text-base font-semibold hover:no-underline">
-                  {item.q}
+                  {/* Drawing-note bubble: the number is the note's tag on the sheet. */}
+                  <span className="flex items-center gap-3">
+                    <span
+                      aria-hidden
+                      className="grid size-7 shrink-0 place-items-center rounded-full border border-primary font-mono text-[12px] font-normal text-primary"
+                    >
+                      {i + 1}
+                    </span>
+                    {item.q}
+                  </span>
                 </AccordionTrigger>
-                <AccordionContent className="max-w-[65ch] pb-4 text-[15px] text-muted-foreground">
+                <AccordionContent className="max-w-[65ch] pb-4 pl-10 text-[15px] text-muted-foreground">
                   {item.a}
                 </AccordionContent>
               </AccordionItem>

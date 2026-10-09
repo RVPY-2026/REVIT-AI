@@ -57,6 +57,28 @@ export function TrialSteps() {
             Không mất phí học thử. Học xong thấy hợp thì mới đăng ký chính thức.
           </SectionHeading>
         </Reveal>
+        {/* Programme ruler: nine days like a Gantt scale; the bar fills as the steps play. */}
+        <div aria-hidden className="mb-8 hidden lg:block">
+          <div className="relative h-2 border border-foreground/40">
+            <span
+              className="absolute inset-y-0 left-0 origin-left bg-primary transition-transform duration-500 ease-out motion-reduce:transition-none"
+              style={{ width: "100%", transform: `scaleX(${p})` }}
+            />
+          </div>
+          <div className="grid grid-cols-9 font-mono text-[12px] text-muted-foreground">
+            {Array.from({ length: 9 }, (_, d) => (
+              <span
+                key={d}
+                className="border-l border-foreground/40 pt-1 pl-1.5 last:border-r"
+              >
+                {d + 1}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1 text-right font-mono text-[12px] text-muted-foreground">
+            Ngày trải nghiệm
+          </p>
+        </div>
         <ol
           ref={ref}
           className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4"

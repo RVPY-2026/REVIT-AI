@@ -7,27 +7,26 @@ import { useCountUp } from "@/lib/use-count-up";
 import { useInView, useScrollProgress } from "@/lib/use-in-view";
 import { SectionHeading } from "./SectionHeading";
 
+// Each phase is a column of a schedule hung under the track, as wide as its share of it.
 const PHASES = [
   {
-    share: "1/4",
     name: "Giai đoạn bắt đầu",
-    tag: "1 kèm 1",
-    focus: "Xây nền tảng, định hướng cá nhân",
+    focus: "Xây nền tảng, định hướng cá nhân.",
     facts: [
-      "Tối thiểu 45 ngày",
-      "Thời gian linh hoạt",
-      "45 phút mỗi buổi 1 kèm 1",
+      ["Hình thức", "1 kèm 1"],
+      ["Thời lượng", "Tối thiểu 45 ngày"],
+      ["Mỗi buổi", "45 phút"],
+      ["Lịch học", "Linh hoạt"],
     ],
   },
   {
-    share: "3/4",
     name: "Giai đoạn tăng cường",
-    tag: "Chuỗi khoá nâng cao",
-    focus: "Phát triển kỹ năng, làm dự án, ứng dụng thực tiễn",
+    focus: "Phát triển kỹ năng, làm dự án, ứng dụng thực tiễn.",
     facts: [
-      "Khoá 2 · Khoá 3 · Khoá 4",
-      "Tổ chức thường niên, lịch cố định",
-      "Học online 2 buổi mỗi tuần",
+      ["Gồm", "Khoá 2 · Khoá 3 · Khoá 4"],
+      ["Hình thức", "Học online"],
+      ["Lịch học", "Cố định, 2 buổi mỗi tuần"],
+      ["Tổ chức", "Thường niên"],
     ],
   },
 ];
@@ -161,31 +160,58 @@ function JourneyTrack() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-[1fr_3fr]">
+      {/* Phase schedule: columns start on the track's 1/4 tick, like extension lines. */}
+      <div className="mt-6 mr-7 grid border-t border-foreground/40 md:grid-cols-[1fr_3fr]">
         {PHASES.map((ph, i) => {
-          const state =
-            done || i < phase ? "done" : i === phase ? "active" : "next";
           return (
             <article
               key={ph.name}
               className={cn(
-                "grid content-start gap-3 rounded-2xl border bg-card p-6 transition-colors duration-300",
-                state === "active" ? "border-primary" : "border-border",
+                "relative grid content-start gap-4 py-6 md:px-6 md:first:pl-0",
+                i > 0 && "border-t border-border md:border-t-0 md:border-l md:border-l-foreground/40",
               )}
             >
-              <div className="flex items-baseline justify-between gap-3 font-mono text-[13px]">
-                <span className="text-primary">
-                  {ph.share} · {ph.tag}
-                </span>
-                {state === "done" && (
-                  <span className="text-muted-foreground">Đã xong</span>
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute inset-x-0 -top-px h-0.5 origin-left bg-primary transition-transform duration-500",
+                  done || i <= phase ? "scale-x-100" : "scale-x-0",
                 )}
-              </div>
-              <h3 className="text-[21px] font-medium">{ph.name}</h3>
-              <p className="text-muted-foreground">{ph.focus}</p>
-              <p className="border-t border-border pt-3 text-[14px]">
-                {ph.facts.join(" · ")}
-              </p>
+              />
+              <header className="grid gap-1">
+                <p className="font-mono text-[13px] text-primary">
+                  {String(i + 1).padStart(2, "0")} · {i === 0 ? "1/4" : "3/4"} hành trình
+                </p>
+                <h3 className="text-[21px] font-medium">{ph.name}</h3>
+                <p className="text-muted-foreground">{ph.focus}</p>
+              </header>
+              {/* Phase facts as a Revit schedule: header band, hairline grid (FRONTEND_RULES §3.7). */}
+              <table className="w-full border-collapse border border-foreground/40 bg-card text-left text-[14px]">
+                <caption className="sr-only">Thông số {ph.name}</caption>
+                <thead>
+                  <tr className="border-b border-foreground/40 bg-foreground/[.04] font-mono text-[12px] text-muted-foreground">
+                    <th scope="col" className="w-[7.5rem] border-r border-border px-3 py-2 font-normal">
+                      Thông số
+                    </th>
+                    <th scope="col" className="px-3 py-2 font-normal">
+                      Chi tiết
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ph.facts.map(([k, v]) => (
+                    <tr key={k} className="border-b border-border last:border-b-0">
+                      <th
+                        scope="row"
+                        className="border-r border-border px-3 py-2.5 align-baseline font-mono text-[12px] font-normal text-muted-foreground"
+                      >
+                        {k}
+                      </th>
+                      <td className="px-3 py-2.5 align-baseline">{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </article>
           );
         })}

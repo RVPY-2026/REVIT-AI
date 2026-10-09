@@ -4,6 +4,7 @@ import { CourseJourney } from "@/components/landing/CourseJourney";
 import { CtaBand } from "@/components/landing/CtaBand";
 import { Faq } from "@/components/landing/Faq";
 import { FeeTiers } from "@/components/landing/FeeTiers";
+import { GridAxis } from "@/components/landing/GridAxis";
 import { HeroIntro } from "@/components/landing/HeroIntro";
 import { ToolCards } from "@/components/landing/ToolCards";
 import { TrialSteps } from "@/components/landing/TrialSteps";
@@ -13,6 +14,7 @@ import { ZaloCommunity } from "@/components/landing/ZaloCommunity";
 export default function HomePage() {
   return (
     <>
+      <GridAxis />
       <BuildStory intro={<HeroIntro />} />
       <CourseJourney />
       <CareerLevels />

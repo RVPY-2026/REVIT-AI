@@ -77,11 +77,12 @@ src/
 
 Direction: **"Magenta Night"** — taken from the RVPY installer splash screen: deep plum background, gradient into magenta, thin geometric logo.
 
-**Reference code:** [`design/reference/rvpy-landing.html`](design/reference/rvpy-landing.html). Open it in a browser. Every value in this section is applied there; when unsure about a border, radius or color, look at that file. How to use it: §10.
+**Reference:** token values live in `src/app/globals.css`; the live look of every token and component is `/ui-kit` (§10).
 
 ### 3.1 Color
 
 Both themes must look finished. Marketing pages follow the system theme with a toggle; app areas follow the system theme with a toggle.
+Theme changes transition color, background, border, and shadow values over about 240ms. Respect `prefers-reduced-motion` and keep the initial theme paint immediate.
 
 ```css
 /* src/app/globals.css — names follow shadcn conventions so components work as-is */
@@ -163,7 +164,7 @@ Desktop hero (width ≥ 1024px) also responds to viewport height: at width ≥ 1
 - `lucide-react`, `strokeWidth={1.75}`, sizes 16 (inline), 20 (buttons), 24 (cards).
 - **An icon must carry information the text next to it does not.** Use icons for actions (buttons, external-link arrow, copy, +/−), for status, and in the dense app areas (sidebar, toolbars, table rows). Do **not** put an icon in front of every item of a marketing list or every feature card — an icon that just restates its label ("Tiết kiệm thời gian" → clock, "Chất lượng" → shield) is the template look the owner rejected.
 - Never reuse one icon for different meanings on the same page.
-- Marketing pages show things with **drawings, screenshots or numbers**, in the site's technical-drawing language (section marks, elevations, dimension strings, sheets): lists of short statements become numbered notes (`landing/NoteList`: mono `01`, hairline rules); a tool or feature is shown by a drawing or screenshot of what it does, with a one-line caption under it, not as "icon + heading + small text" cards.
+- Marketing pages show things with **drawings, screenshots or numbers**, in the site's technical-drawing language (§3.7: section marks, elevations, dimension strings, sheets): lists of short statements become numbered notes (`landing/NoteList`: mono `01`, hairline rules); a tool or feature is shown by a drawing or screenshot of what it does, with a one-line caption under it, not as "icon + heading + small text" cards.
 - Where an icon does belong as the lead of an item (mainly app areas), it sits in an **icon tile** (`ui/IconTile`): `primary-soft` background, 12px radius, icon in `--primary`.
 - Domain icons that Lucide lacks (Revit elements: foundation, slab, beam, column, wall, roof) are drawn in-house with the same rules — 24px grid, 1.75 stroke — in `components/icons/revit.tsx`.
 - Icon-only buttons require a Vietnamese `aria-label`.
@@ -175,9 +176,54 @@ Course journey imagery is additive: keep the existing animated timeline, both ph
 
 Light: buttons brighten on hover (`brightness(1.08)`), cards lift 2px, blocks below the fold fade in + rise 16px when scrolled into view. Durations 150–300ms, max 600ms. Respect `prefers-reduced-motion`. Content above the fold on load must never start at `opacity: 0`.
 
+Interactive popups (profile menus, dropdowns, popovers and dialogs) must animate on open and close instead of appearing abruptly. Use the shared Radix/shadcn primitives and state-based motion: open in about 180–220ms with ease-out, close in about 120–160ms with ease-in, combining a subtle fade with a small scale or 4–8px directional slide. Keep the animation origin anchored to the trigger where supported, and preserve the global reduced-motion behavior. Avoid native `<select>` when its option popup needs this motion, since browser/OS menus cannot be animated consistently; use an accessible custom select or dropdown primitive instead.
+
 ### 3.6 Logo
 
-The "RVPY" logo is four thin geometric letters (SVG, `stroke="currentColor"`, viewBox `0 0 160 50`). Take the SVG from the reference file into `components/icons/logo.tsx`. The "Ocean Studio" line uses Lexend 300. Favicons are generated from the logo (svg + png 32 + apple-touch 180).
+The "RVPY" logo is four thin geometric letters (SVG, `stroke="currentColor"`, viewBox `0 0 160 50`). The SVG lives in `components/icons/logo.tsx`. The "Ocean Studio" line uses Lexend 300. Favicons are generated from the logo (svg + png 32 + apple-touch 180).
+
+### 3.7 Drawing language (Revit / technical-drawing UI)
+
+The audience reads drawings for a living, so marketing pages borrow the vocabulary of a Revit sheet instead of generic SaaS cards. It is a **seasoning, not a skin**: use it where the content has the same shape as the drawing element, never to decorate.
+
+**Where it applies**
+
+| Area | Use the drawing language? |
+|---|---|
+| Public marketing pages (`/`, `/khoa-hoc`, `/cong-cu`) | Yes, as the default way to show structure, sequence, price and notes |
+| Post-submit pages (`/dang-ky/thanh-cong`) | Yes: the "sheet" pattern below |
+| Sign-in, policies, forms | No: plain cards and fields. Clarity beats theme |
+| Student and management areas | **No.** Dense data UI (`DataTable`, `Kanban`, forms) stays neutral; do not use frames, stamps, bubbles or axes there. At most a mono ID or elevation-style label |
+
+**Pick the pattern by the content's shape**
+
+| Content shape | Pattern | Component / example | Rules |
+|---|---|---|---|
+| Levels, ranks, stages stacked in order | **Section with elevations** (storeys, level tags `±0.000`, `+3.600`, pitched roof, hatched ground) | `landing/CareerLevels` | One building per page section. The roof is required, otherwise it does not read as a house. Clickable storeys use `aria-expanded` |
+| A sequence over time (days, phases) | **Programme ruler / Gantt bar** | `landing/TrialSteps` ruler | Mono tick numbers, bar fills with scroll; hidden below `lg` |
+| Prices, tiers, comparisons, specs | **Schedule (real `<table>`)**: header band, hairline grid, current row tinted, total row | `landing/FeeCalculator` | Must be a semantic table with `<caption>`, `<th scope>`. Numbers right-aligned in mono, `tabular-nums` |
+| Short statements, FAQ, caveats | **Numbered notes / callout bubbles** (circle + mono number) | `landing/NoteList`, `landing/Faq` | The number is the tag; the text stays HTML. Never an icon that restates its label (§3.4) |
+| A confirmation or document the user keeps | **Sheet**: double border, mono sheet label, approval stamp, title block | `/dang-ky/thanh-cong` | Stamp only on a *valid* success state, never on empty or error states. Links become numbered note boxes with the bubble **inside** the box (`pl-2.5`), leader line through the bubble centres |
+| Ownership, version, date, ID of a page | **Title block** (2-column mono table, bottom right) | `layout/PublicFooter`, thank-you sheet | `aria-hidden` when decorative; real data (student ID) stays readable text |
+| Page-wide navigation | **Grid axes** A–F in the margin | `landing/GridAxis` | `2xl` and up only (needs margin space), anchors to real section ids, lit by `IntersectionObserver` |
+| A 3D or spatial explanation | **Line drawing** (three.js, `landing/build-story`) | `BuildStory` | Only on the home page; palette per theme (`light` / `dark` / `blueprint`) |
+
+**Rules for every drawing element**
+
+1. **One or two motifs per section.** A section with a ruler, bubbles, a title block and a stamp is a costume, not a design.
+2. **Legibility first.** Body copy keeps §3.2 sizes; mono is for labels, numbers and IDs only. Hairlines use `foreground/40` (outer frames) or `--border` (inner grid); no heavier than 2px.
+3. **No new tokens.** Colors come from §3.1 only; stamp and accents use `--primary`. Status colors keep meaning state (§3.1).
+4. **Accessible.** Purely decorative parts are `aria-hidden`; anything that carries data is real HTML (table, list, link) with a Vietnamese label. Respect `prefers-reduced-motion` (stamp and ruler animations use the shared reduced-motion rule).
+5. **Works in both themes and at 375px.** Frames shrink padding (`p-5` → `sm:p-8`), tables may scroll inside their own `overflow-x-auto`, and wide-only extras (ruler, axes) are hidden, not squeezed.
+6. **Text is Vietnamese, labels are the drawing's own** (Tờ, Cao độ, Ghi chú, Bảng thống kê, Mặt cắt). Do not invent Revit jargon the reader would not recognise.
+
+**Blueprint theme (easter egg, not a product theme)**
+
+- A third theme class `.blueprint` (cyanotype blue paper, white ink, cyan accent, drafting grid on `body`). Typing `blueprint` anywhere outside form fields toggles it; there is **no button for it** and it is not part of the Magenta Night tokens.
+- It is a dark-family theme: the `dark:` variant also matches `.blueprint`. The 3D scene has its own `blueprint` palette.
+- Every new component must still look right in light and dark; checking Blueprint is a courtesy, not a requirement. Do not add Blueprint-only layouts.
+- It is forced for the current page view only (`forcedTheme`) and **never stored**: a reload returns to the reader's own light/dark choice. The theme toggle just leaves Blueprint (`useBlueprint()` in `layout/ThemeProvider`).
+- The drawing patterns are shown in `/ui-kit` → "Drawing language"; add new ones there.
 
 ---
 
@@ -199,7 +245,7 @@ The "RVPY" logo is four thin geometric letters (SVG, `stroke="currentColor"`, vi
 
 ### 4.3 Sign-in page
 
-Single centered card with the Google sign-in button and an email field that sends a passwordless sign-in link, separated by a short "hoặc" divider. Put the logo above and a short note below. A separate "account not activated" state has a contact button.
+Single centered card with the Google sign-in button and an email field that sends a passwordless sign-in link, separated by a short "hoặc" divider. After sending, replace the form with a confirmation state showing the recipient, a resend action and a way to change the email. Put the logo above and a short note below. A separate "account not activated" state has a contact button.
 
 ---
 
@@ -259,48 +305,39 @@ Single centered card with the Google sign-in button and an email field that send
 - Use gradients or glass outside the places listed in §3.
 - Change tokens (color, font, radius) without asking the project owner.
 - Use emoji as UI icons.
-- Copy CSS/JS from the reference file verbatim (§10).
+- Paste markup or CSS between pages instead of reusing the shared components and tokens (§10).
+- Use the drawing language (§3.7) in the student or management areas, stack more than two drawing motifs in one section, or put a stamp on a non-success state.
 
 ---
 
-## 10. Reference code — `design/reference/rvpy-landing.html`
+## 10. Reference: the UI kit (`/ui-kit`)
 
-A static HTML build of the marketing home page using the agreed tokens. It is a **design spec written as code**, not production code.
+The live reference for the design is the **UI kit page**, `src/app/ui-kit/page.tsx` (served at `/ui-kit`, development only, not linked anywhere). It replaces the old static HTML mock-up. Open it next to the page you are building; it renders in light, dark and (by typing `blueprint`) the hidden Blueprint theme.
 
-**Take from it:**
-- Token values for light/dark, gradients, button shadow — the `:root` block at the top. Variable names **match** §3.1 (`--background`, `--primary`, `--primary-soft`…), so values copy straight into `globals.css`.
-- How the rules look in practice: primary vs outline buttons, cards with a 1px border and no shadow, icon tiles, status badges, section spacing, heading sizes.
-- The logo SVG (`<svg viewBox="0 0 160 50">` in the header) → `components/icons/logo.tsx`.
-- Section order and copy of the home page.
+**It shows:** type scale and fonts, color tokens, buttons, inputs, badges, status badges, cards, icon tiles, skeletons, gradients (hero, CTA band), the CRM components, and the drawing-language patterns of §3.7 (numbered notes, callout bubble, level mark, approval stamp, Schedule table, title block).
 
-**Do not copy:**
-- The plain CSS → rewrite with Tailwind utilities and shadcn components.
-- The `<script>` at the end → replace with `next-themes`, a `useScrollDirection` hook, and a `<Reveal>` component.
-- The `data-mode` attribute on `<html>` → the project uses the `.dark` class set by next-themes. The reference file has dark on `:root`; the project has light on `:root` and dark on `.dark`, as in §3.1.
+**Sources of truth, in order:** `src/app/globals.css` (token values) → §3 of this document (rules and rationale) → `/ui-kit` (how it looks). When they disagree, fix the one that is wrong; do not work around it.
 
-**Class → component map:**
+**Keep it alive:**
+- A new shared component or pattern (`components/ui`, `components/layout`, a reusable `landing/` piece) gets a block in the UI kit in the same change.
+- A token change updates `globals.css`, §3.1 and the UI kit together, and needs the project owner's approval (§9).
+- The UI kit is a showcase, not a spec to copy: take values from tokens and reuse the components, never paste markup between pages.
 
-| Reference class | Project component |
+**Landing section → component**
+
+| Section | Component |
 |---|---|
-| `.btn` | `<Button>` variant `default` (gradient + shadow) |
-| `.ghost` | `<Button variant="outline">` |
-| `.btn.sm`, `.ghost.sm` | `size="sm"` |
-| `.nav` | `layout/PublicHeader` |
-| `.pill` | `<Badge variant="soft">` |
-| `.badge.ok / .wait / .info` | `admin/StatusBadge` |
-| `.ic` | `ui/IconTile` (app areas; see §3.4) |
-| `.panel` | `landing/HeroPanel` |
-| `.path`, `.steps` | `landing/CourseOutline`, `landing/TrialSteps` |
-| `.tiers` / `.tier.hot` | `landing/FeeTiers` + `landing/FeeCalculator` |
-| `.tool` | `landing/ToolCards` (drawing + caption) |
-| `.benefits` | `landing/NoteList` |
-| `.community`, `.join` | `landing/ZaloCommunity` |
-| `.faq details` | shadcn `<Accordion>` |
-| `.band` | `landing/CtaBand` |
-| `.foot` | `layout/PublicFooter` |
-| `.fab` | `layout/ZaloFab` |
-| `.rv` | `<Reveal>` |
+| Hero + curriculum | `landing/build-story` (`BuildStory`, `HeroIntro`) |
+| Course journey | `landing/CourseJourney` |
+| Career levels | `landing/CareerLevels` |
+| 9-day trial | `landing/TrialSteps` |
+| Fees and referral | `landing/FeeTiers` + `landing/FeeCalculator` |
+| Tools | `landing/ToolCards` (drawing + caption) |
+| Zalo community | `landing/ZaloCommunity` |
+| FAQ | `landing/Faq` (shadcn `Accordion`) |
+| CTA band | `landing/CtaBand` |
+| Header / footer / Zalo button | `layout/PublicHeader`, `layout/PublicFooter`, `layout/ZaloFab` |
+| Numbered notes / title block | `landing/NoteList`, `layout/TitleBlock` |
+| Scroll reveal | `ui/reveal` |
 
-Text with class `.ph` (dashed underline) is **placeholder copy awaiting confirmation** — never ship it to production.
-
-When the design changes, update **both** the reference file and §3 of this document so they stay in sync.
+Copy that still awaits client confirmation is listed in CLAUDE.md §10; do not mark it in the UI.

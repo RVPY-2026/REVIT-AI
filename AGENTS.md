@@ -2,13 +2,13 @@
 
 ## How to work in this repo
 
-1. **Frontend work:** read [FRONTEND_RULES.md](FRONTEND_RULES.md) in full first, and open [design/reference/rvpy-landing.html](design/reference/rvpy-landing.html) to see the tokens applied. Take values and rules from it; don't copy its CSS/JS (FRONTEND_RULES §10).
+1. **Frontend work:** read [FRONTEND_RULES.md](FRONTEND_RULES.md) in full first. Take token values from `src/app/globals.css` and see how things look in the UI kit at `/ui-kit` (FRONTEND_RULES §10).
 2. **Backend work** (`src/server`, `src/proxy.ts`, `src/app/api`, auth, database): read [BACKEND_RULES.md](BACKEND_RULES.md) in full first. §4 (authorization) is non-negotiable.
 3. Check current library docs (Context7, or the bundled Next.js docs in `node_modules/next/dist/docs/`) before using an API — especially Next.js 16 App Router (`proxy.ts`, Cache Components), Tailwind v4, shadcn/ui, Supabase SSR, Drizzle.
 4. **Stack:** one Next.js app = frontend + backend, Supabase (Postgres + Google sign-in + Storage), Drizzle ORM, zod, Vercel. pnpm. Run `pnpm typecheck && pnpm lint` before committing.
 5. UI work can run without a database: `NEXT_PUBLIC_USE_MOCK=true` serves `src/mocks` through `src/lib/api` (FRONTEND_RULES §7).
 6. Never commit real student data, the client's Google Sheet links, or secrets. Mocks use fake names.
-7. If the design changes, update FRONTEND_RULES §3 **and** the reference file.
+7. If the design changes, update `globals.css`, FRONTEND_RULES §3 **and** the UI kit (`/ui-kit`). New shared components or patterns go into the UI kit too.
 8. All code, comments and docs in English. All UI copy in Vietnamese.
 
 ---
@@ -92,7 +92,7 @@ The course is the focus; the tools are one small section.
 7. **FAQ**.
 8. **CTA band**, multi-column footer, floating Zalo button.
 
-The reference file implements this order.
+The landing page (`src/app/(public)/page.tsx`) implements this order.
 
 ## 6. Student pipeline (draft — confirm with client)
 
