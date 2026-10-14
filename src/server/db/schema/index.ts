@@ -5,3 +5,5 @@ export * from "./billing";
 export * from "./content";
 export * from "./learning";
 export * from "./feedback";
+export * from "./zalo";
+export * from "./signup";

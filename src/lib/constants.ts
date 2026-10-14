@@ -127,3 +127,9 @@ export const ROLE_LABELS = {
   student: "Học viên",
   user: "Tài khoản thường",
 } as const;
+
+/** Display names for `licenses.product`; unknown products fall back to the raw key. */
+export const LICENSE_PRODUCT_LABELS: Record<string, string> = {
+  suite: "Bộ add-in RVPY (tất cả công cụ)",
+  "auto-join": "Auto Join",
+};

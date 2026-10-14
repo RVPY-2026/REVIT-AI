@@ -13,7 +13,7 @@ const AXES = [
   { id: "hoi-dap", label: "Hỏi đáp" },
 ] as const;
 
-/** Fixed rail in the left margin of wide screens. Decorative navigation: hidden below 2xl. */
+/** Fixed rail in the left margin of wide screens. Decorative navigation: hidden below xl; compact at xl so it fits the 24px gutter. */
 export function GridAxis() {
   const [active, setActive] = useState<string | null>(null);
 
@@ -38,9 +38,9 @@ export function GridAxis() {
   return (
     <nav
       aria-label="Các mục trên trang"
-      className="pointer-events-none fixed top-1/2 left-5 z-30 hidden -translate-y-1/2 2xl:block"
+      className="pointer-events-none fixed top-1/2 left-0.5 z-30 hidden -translate-y-1/2 xl:block 2xl:left-5"
     >
-      <div className="relative grid gap-5">
+      <div className="relative grid gap-4 2xl:gap-5">
         <span
           aria-hidden
           className="absolute inset-y-[-24px] left-1/2 w-px -translate-x-1/2 bg-foreground/15"
@@ -52,7 +52,7 @@ export function GridAxis() {
             aria-label={a.label}
             title={a.label}
             className={cn(
-              "pointer-events-auto relative grid size-7 place-items-center rounded-full border bg-background font-mono text-[12px] transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
+              "pointer-events-auto relative grid size-5 place-items-center rounded-full border bg-background font-mono text-[10px] 2xl:size-7 2xl:text-[12px] transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
               active === a.id
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-foreground/30 text-muted-foreground hover:border-primary hover:text-primary",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { GoogleIcon } from "@/components/icons/brand";
 import { createClient } from "@/lib/supabase/client";
 
 export function GoogleSignInButton({ next }: { next?: string }) {
@@ -31,6 +32,7 @@ export function GoogleSignInButton({ next }: { next?: string }) {
         aria-busy={pending}
         className="w-full"
       >
+        <GoogleIcon className="size-5" />
         {pending ? "Đang mở Google…" : "Đăng nhập bằng Google"}
       </Button>
       {error ? (

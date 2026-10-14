@@ -50,7 +50,7 @@ src/
     queries/<domain>.ts       # reads, e.g. listStudents(user, filter)
     actions/<domain>.ts       # "use server" mutations
     audit.ts, result.ts
-  app/api/                    # Route Handlers: webhooks, cron, exports, add-in license check
+  app/api/                    # Route Handlers: webhooks, cron, exports, add-in license check, student file streaming (`export/students` and `student/resources/[id]` exist so far)
 ```
 
 - Pages and components **never** import `@/server/db`. They call `src/lib/api/*` (FRONTEND_RULES §7), which calls `src/server/queries/*` when `NEXT_PUBLIC_USE_MOCK` is not `true`.
@@ -65,7 +65,7 @@ src/
 - Every timestamp is `timestamp({ withTimezone: true })`. Business dates (monthly reports, "sign-up month") are computed in **`Asia/Ho_Chi_Minh`**.
 - Money: `bigint` whole VND (`amountVnd`). No floats, no decimals.
 - Emails are stored **lowercase**. Phones are stored as digits only (`0901234567`). Formatting is the UI's job.
-- Status changes write an enum-validated row to `student_status_events`. History is never overwritten. Trial/formal activation uses dedicated enrollment actions that update CRM and enrollment in the same transaction; kanban only accepts new/consulting/dropped.
+- Status changes write an enum-validated row to `student_status_events`. History is never overwritten. Trial/formal activation uses dedicated enrollment actions that update CRM and enrollment in the same transaction; kanban drag-and-drop only accepts new/consulting/dropped. The explicit manual status editor accepts all five CRM classifications in either direction, writes history and audit atomically, and never activates accounts or changes enrollment/payment records.
 - No hard deletes of students, payments or licenses from the app. Use status (`dropped`, `revoked`) instead.
 - **Every table calls `.enableRLS()`** (§4).
 - Schema change workflow: edit `schema/*.ts` → `pnpm db:generate --name <what>` → review the SQL → `pnpm db:migrate`. Never edit an applied migration, and never use `drizzle-kit push` against the shared database.
@@ -93,8 +93,9 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 1. `/dang-nhap` → Google OAuth or `signInWithOtp({ email, options: { emailRedirectTo: <origin>/auth/callback?next=… } })` for a passwordless email link.
 2. `/auth/callback` → `exchangeCodeForSession(code)` → `getCurrentUser()`.
-3. No `users` row (or no roles) → `/chua-kich-hoat` ("tài khoản chưa được kích hoạt" + Zalo button). Otherwise → `homePathFor(user)`, or the `next` path if it starts with `/`.
-4. `users` rows are created **before** first sign-in: by an admin for staff, or by "activate student" for a lead (sets `students.userId`, adds role `student`). The first sign-in links `authUserId`.
+3. A verified first sign-in with no matching app row creates a `users` row and the least-privileged `user` role in one transaction. `admin`, `sale`, and `student` roles are never self-assigned. Existing staff/student rows are matched by lowercase email and linked to `authUserId` on first sign-in.
+4. `admin`/`sale` route to `/quan-tri`, `student` routes to `/hoc-vien`, and `user` returns to `/`. Only disabled or inconsistent app accounts go to `/chua-kich-hoat`.
+5. `users` rows for staff and students can still be created before first sign-in: by an admin for staff, or by "activate student" for a lead (sets `students.userId`, adds role `student`).
 
 ### Mock mode
 
@@ -107,7 +108,8 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 - Actions live in `src/server/actions/<domain>.ts` with `"use server"` at the top. They return **`ActionResult<T>`** (`src/server/result.ts`). They never throw to the client for expected failures. Error strings are Vietnamese, ready for a toast.
 - Order inside an action: **parse input with zod → `requirePermission` → load the target with `studentScope` (404 if not visible) → mutate in a `db.transaction` → `audit(tx, …)` → `revalidatePath`/`updateTag`**.
 - Every mutation writes to `audit_log` in the same transaction (`src/server/audit.ts`).
-- Use Route Handlers (`src/app/api/**/route.ts`) only for machine callers: payment webhooks, cron, the add-in license check, and file downloads (Excel). Everything a page does goes through Server Actions.
+- Use Route Handlers (`src/app/api/**/route.ts`) only for machine callers: payment webhooks, cron, the add-in license check, and file downloads (Excel, and the student's learning files). Everything a page does goes through Server Actions.
+- **Learning files** (`learning_resources`) live in private Storage buckets and are never linked directly. `/api/student/resources/[id]` resolves the caller, checks the row against their enrollment (`getMyResourceFile`: audience, lesson access, active) and streams the object with the secret key: PDFs/images inline only, installers (`mode = download`) as attachments. Student-area queries live in `src/server/queries/student-area.ts`, every one scoped by `studentScope(user, "student")`; the matching mutations (`reportLesson`, `submitFeedback`) share `src/server/student-learning-record.ts`.
 - Public endpoints (sign-up form, add-in license check, webhooks) assume hostile input: zod-validate it, cap string lengths, and keep error messages generic.
 
 ---
@@ -116,7 +118,7 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 - `message_templates.body` uses `{{placeholders}}`. The allowed keys are defined in one map in `src/server/queries/templates.ts`: `ten`, `ma_hoc_vien`, `so_dien_thoai`, `hoc_phi`, `zalo_nhom_1`, `zalo_nhom_2`, `link_gioi_thieu`, …
 - Placeholders are filled on the server with data the caller is allowed to see. Unknown keys are left visible as `{{key}}` so staff notice them.
-- The site **never sends** Zalo messages. It renders the text and the UI offers a copy button (CLAUDE.md §2).
+- CRM currently renders text with a copy button. The owner authorized official Zalo Bot automation; the local test runner only replies to a fresh random command in a private chat (`docs/zalo-bot.md`). Production student delivery remains unimplemented and must use secure linking, scoped staff actions, authenticated webhooks and durable idempotency.
 
 ---
 
@@ -124,8 +126,8 @@ The client's two fears are **losing data** and **leaking data**. The second one 
 
 - **Excel export** (`/api/export/<list>`) re-runs the list query with the **same filters and the same `studentScope`**, then streams an `.xlsx` built with exceljs. File name: `rvpy-<list>-<yyyyMMdd>.xlsx`. Column headers are in Vietnamese.
 - **Monthly report** export follows the same rule. A `sale` user's report contains only their sources.
-- **Nightly backup:** Vercel Cron → `/api/cron/backup` → one workbook with every business table → private Storage bucket `backups/`, keeping 30 days. A copy to the owner's Google Drive can be added later.
-- **Transition from Google Sheets:** a one-off import script (`scripts/import-sheet.ts`) reads `.xlsx`/`.csv` exports of the current sheets into `students`/`payments`. There is **no live two-way sync** in v1. The owner keeps exporting from the site until they trust it.
+- **Nightly backup** *(planned, not built: no `/api/cron/backup` yet)*: Vercel Cron → `/api/cron/backup` → one workbook with every business table → private Storage bucket `backups/`, keeping 30 days. A copy to the owner's Google Drive can be added later.
+- **Transition from Google Sheets** *(planned: `scripts/import-sheet.ts` does not exist yet; only `scripts/bootstrap-staff.ts` does)*: a one-off import script (`scripts/import-sheet.ts`) reads `.xlsx`/`.csv` exports of the current sheets into `students`/`payments`. There is **no live two-way sync** in v1. The owner keeps exporting from the site until they trust it.
 - Real exported sheets are **never committed**. Put them in a git-ignored `data/` folder.
 
 ---

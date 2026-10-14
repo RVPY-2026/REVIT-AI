@@ -10,8 +10,12 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".next-signup-check/**",
+    ".next-crm-check/**",
+    ".next-filter-preview/**",
+    ".next-onboarding-preview/**",
     "out/**",
     "build/**",
+    ".netlify/**",
     "next-env.d.ts",
   ]),
 ]);

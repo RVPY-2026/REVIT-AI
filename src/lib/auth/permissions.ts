@@ -1,7 +1,7 @@
 // Single source of truth for who may do what. Pure TS: imported by the UI (to
 // hide buttons) and by src/server (to enforce). Only the server check is security.
 
-export type Role = "admin" | "sale" | "student";
+export type Role = "admin" | "sale" | "student" | "user";
 
 export type SessionUser = {
   id: string;
@@ -21,8 +21,11 @@ const PERMISSIONS = {
   "students.edit": ["admin", "sale"],
   "students.create": ["admin", "sale"], // sale: active sources they own only
   "enrollments.trial": ["admin", "sale"],
+  "students.activate": ["admin"],
+  "students.learning.edit": ["admin", "sale"],
   "enrollments.formal": ["admin"],
   "students.export": ["admin", "sale"],
+  "students.import": ["admin"], // one-off and recurring sheet imports touch every source
   "templates.view": ["admin", "sale"],
   "templates.edit": ["admin"],
   "payments.view": ["admin"],
@@ -31,6 +34,7 @@ const PERMISSIONS = {
   "sources.manage": ["admin"],
   "reports.view": ["admin", "sale"], // sale: own sources only
   "settings.manage": ["admin"],
+  "roles.manage": ["admin"], // grant/revoke admin and sale on other accounts (roles-manager.ts)
   "student-area.view": ["admin", "student"],
 } as const satisfies Record<string, readonly Role[]>;
 
@@ -50,5 +54,6 @@ export function isAdmin(user: Pick<SessionUser, "roles">): boolean {
 export function homePathFor(user: Pick<SessionUser, "roles">): string {
   if (can(user, "admin-area.view")) return "/quan-tri";
   if (can(user, "student-area.view")) return "/hoc-vien";
+  if (user.roles.includes("user")) return "/";
   return "/chua-kich-hoat";
 }

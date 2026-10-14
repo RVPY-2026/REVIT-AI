@@ -1,0 +1,14 @@
+.next
+.next-*
+node_modules
+.git
+.vercel
+data
+tests
+docs
+design
+.claude
+coverage
+out
+*.tsbuildinfo
+.env*

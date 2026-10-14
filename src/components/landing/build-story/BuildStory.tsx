@@ -1,11 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { RotateCcw } from "lucide-react";
 import { cn } from "cn";
+import { HeroBackdrop } from "../HeroBackdrop";
 import type { BuildingScene, SceneTheme } from "./building-scene";
 import { MEP_LEGEND, STORY_STEPS } from "./story-steps";
 
 const STEP_COUNT = STORY_STEPS.length + 1; // + the intro
+
+// Opening sequence: the model builds itself once on load (scene time 0 → INTRO_END), holds on the
+// finished building, then rewinds to the ghost so scrolling picks up where the story starts.
+const INTRO_END = 6.3;
+const INTRO_BUILD_MS = 18000;
+const INTRO_HOLD_MS = 2000;
+const INTRO_REWIND_MS = 4500;
+
+const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
+const smoothstep = (a: number, b: number, x: number) => {
+  const k = clamp01((x - a) / (b - a));
+  return k * k * (3 - 2 * k);
+};
 
 /**
  * Home hero + curriculum as one scrollytelling section: the copy scrolls on the left while a
@@ -17,6 +32,10 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const elementsRef = useRef<HTMLSpanElement>(null);
+  const clashRef = useRef<HTMLSpanElement>(null);
+  const replayRef = useRef<() => void>(() => {});
+  const [playing, setPlaying] = useState(false);
   const [active, setActive] = useState(0);
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
 
@@ -33,9 +52,70 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
     let scene: BuildingScene | null = null;
     let disposed = false;
     let lastActive = -1;
+    let intro: number | null = null; // rAF id while the opening sequence owns the scene time
+
+    // Single entry point for scene time: scene, progress bar, active step and the status bar.
+    function drive(t: number) {
+      scene?.setProgress(t);
+      if (barRef.current) barRef.current.style.transform = `scaleX(${Math.max(0, (t - 1) / (STEP_COUNT - 1))})`;
+      const idx = Math.min(Math.floor(t), STEP_COUNT - 1);
+      if (idx !== lastActive) {
+        lastActive = idx;
+        setActive(idx);
+      }
+      if (elementsRef.current) {
+        elementsRef.current.textContent = Math.round(smoothstep(0.8, 6, t) * 2480).toLocaleString("vi-VN");
+      }
+      const clash = clashRef.current;
+      if (clash) {
+        const flagged = t > 5.15 && t <= 5.75;
+        const solved = t > 5.75 && t < 6.05;
+        clash.textContent = flagged ? "1" : solved ? "0" : "—";
+        clash.style.color = flagged ? "#ff4d5e" : solved ? "#2fbf87" : "";
+      }
+    }
+
+    function stopIntro() {
+      if (intro !== null) cancelAnimationFrame(intro);
+      intro = null;
+      setPlaying(false);
+    }
+
+    function playIntro() {
+      stopIntro();
+      setPlaying(true);
+      const start = performance.now();
+      const tick = (now: number) => {
+        const e = now - start;
+        let t: number;
+        if (e < INTRO_BUILD_MS) t = (e / INTRO_BUILD_MS) * INTRO_END;
+        else if (e < INTRO_BUILD_MS + INTRO_HOLD_MS) t = INTRO_END;
+        else {
+          const k = clamp01((e - INTRO_BUILD_MS - INTRO_HOLD_MS) / INTRO_REWIND_MS);
+          t = INTRO_END * (1 - k * k * (3 - 2 * k));
+          if (k >= 1) {
+            intro = null;
+            setPlaying(false);
+            readProgress();
+            return;
+          }
+        }
+        drive(t);
+        intro = requestAnimationFrame(tick);
+      };
+      intro = requestAnimationFrame(tick);
+    }
+    replayRef.current = () => {
+      if (window.scrollY < 40 && scene) playIntro();
+    };
 
     // Story time: index of the step under the focus line + how far through it we are.
     function readProgress() {
+      if (intro !== null) {
+        if (window.scrollY > 40) {
+          stopIntro();
+        } else return;
+      }
       const vh = window.innerHeight;
       const stageH = desktop.matches ? 0 : stage!.getBoundingClientRect().height;
       const focus = stageH + (vh - stageH) * 0.5;
@@ -45,14 +125,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
         if (focus < r.top) break;
         t = focus < r.bottom ? i + (focus - r.top) / r.height : i + 1;
       }
-      t = Math.min(t, STEP_COUNT);
-      scene?.setProgress(t);
-      if (barRef.current) barRef.current.style.transform = `scaleX(${Math.max(0, (t - 1) / (STEP_COUNT - 1))})`;
-      const idx = Math.min(Math.floor(t), STEP_COUNT - 1);
-      if (idx !== lastActive) {
-        lastActive = idx;
-        setActive(idx);
-      }
+      drive(Math.min(t, STEP_COUNT));
     }
 
     const sceneTheme = (): SceneTheme => {
@@ -89,6 +162,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
         resizeObserver.observe(canvas);
         visibility.observe(section);
         setStatus("ready");
+        if (!reducedMotion && window.scrollY < 40) playIntro();
       })
       .catch(() => setStatus("failed"));
 
@@ -98,6 +172,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
 
     return () => {
       disposed = true;
+      if (intro !== null) cancelAnimationFrame(intro);
       window.removeEventListener("scroll", readProgress);
       window.removeEventListener("resize", readProgress);
       themeObserver.disconnect();
@@ -111,7 +186,8 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
   const showLegend = active === 4 || active === 5;
 
   return (
-    <section ref={sectionRef} aria-label="Giới thiệu khoá học và lộ trình" className="relative bg-hero">
+    <section ref={sectionRef} aria-label="Giới thiệu khoá học và lộ trình" className="relative isolate bg-hero">
+      <HeroBackdrop />
       <div className="content grid lg:grid-cols-2 lg:gap-x-8 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] xl:gap-x-12">
         <div
           data-step="0"
@@ -160,7 +236,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
                     · {active === 0 ? "Toàn bộ công trình" : STORY_STEPS[stepNo - 1].stage}
                   </span>
                 </span>
-                <NorthArrow />
+                <ViewCube />
               </div>
               <div className="mt-2 h-px bg-foreground/15">
                 <div ref={barRef} className="h-px origin-left scale-x-0 bg-primary" />
@@ -180,11 +256,38 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
               </ol>
             </div>
 
+            {/* Status bar, like the strip along the bottom of the Revit window. */}
+            <div
+              aria-hidden
+              className="absolute inset-x-3 bottom-3 flex h-8 items-center gap-4 border-t border-foreground/15 bg-background/70 font-mono text-[12px] text-muted-foreground backdrop-blur-sm lg:inset-x-4 lg:bottom-4"
+            >
+              <span className="hidden sm:inline">Tỷ lệ 1 : 100</span>
+              <span>
+                Cấu kiện <span ref={elementsRef} className="text-foreground tabular-nums">0</span>
+              </span>
+              <span>
+                Va chạm{" "}
+                <span ref={clashRef} className="tabular-nums text-foreground">
+                  —
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => replayRef.current()}
+                disabled={playing || status !== "ready"}
+                tabIndex={-1}
+                className="pointer-events-auto ml-auto inline-flex items-center gap-1.5 text-foreground transition-opacity enabled:hover:text-primary disabled:opacity-0"
+              >
+                <RotateCcw className="size-3" strokeWidth={1.75} />
+                Phát lại
+              </button>
+            </div>
+
             {/* MEP legend */}
             <ul
               aria-hidden
               className={cn(
-                "pointer-events-none absolute bottom-6 left-6 grid gap-1 font-mono text-[12px] text-muted-foreground transition-opacity duration-300 lg:bottom-8 lg:left-8",
+                "pointer-events-none absolute bottom-14 left-6 grid gap-1 font-mono text-[12px] text-muted-foreground transition-opacity duration-300 lg:bottom-16 lg:left-8",
                 showLegend ? "opacity-100" : "opacity-0",
               )}
             >
@@ -200,7 +303,7 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
             <p
               aria-hidden
               className={cn(
-                "pointer-events-none absolute bottom-6 left-6 hidden max-w-[24ch] font-mono text-[12px] text-muted-foreground transition-opacity duration-300 sm:block lg:bottom-8 lg:left-8",
+                "pointer-events-none absolute bottom-14 left-6 hidden max-w-[24ch] font-mono text-[12px] text-muted-foreground transition-opacity duration-300 sm:block lg:bottom-16 lg:left-8",
                 status === "ready" && active >= 2 && !showLegend ? "opacity-100" : "opacity-0",
               )}
             >
@@ -277,11 +380,14 @@ export function BuildStory({ intro }: { intro: ReactNode }) {
   );
 }
 
-function NorthArrow() {
+/** Revit ViewCube inside a compass ring. Decorative. */
+function ViewCube() {
   return (
-    <svg viewBox="0 0 24 24" className="size-6 text-foreground/70" fill="none" stroke="currentColor" strokeWidth={1.25}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 4l4 13-4-3-4 3z" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 32 32" className="size-8 text-foreground/70" fill="none" stroke="currentColor" strokeWidth={1.1} strokeLinejoin="round">
+      <circle cx="16" cy="16" r="14.5" strokeDasharray="2 2.4" strokeOpacity=".6" />
+      <path d="M16 7 L23.5 11.5 V20.5 L16 25 L8.5 20.5 V11.5 Z" />
+      <path d="M8.5 11.5 L16 16 L23.5 11.5 M16 16 V25" />
+      <path d="M8.5 11.5 L16 7 L23.5 11.5 L16 16 Z" fill="currentColor" fillOpacity=".14" />
     </svg>
   );
 }

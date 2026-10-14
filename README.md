@@ -9,7 +9,8 @@ Website for RVPY (Ocean Studio): a public site advertising the Revit course and 
 | [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) | Project context for agents: product, roles, page map, business flow, open questions |
 | [FRONTEND_RULES.md](FRONTEND_RULES.md) | Frontend-only rules: stack, design tokens, layout patterns, components, quality bar |
 | [BACKEND_RULES.md](BACKEND_RULES.md) | Server rules: Supabase + Drizzle, Google sign-in, authorization, actions, exports, payments/licensing |
-| [design/reference/rvpy-landing.html](design/reference/rvpy-landing.html) | Approved design as a static HTML page — open it in a browser |
+| [docs/](docs) | Database design and ERD, business workflow review, Google sign-in + admin setup, staging setup, CRM phase 1 notes, source-spreadsheet data dictionary |
+
 
 ## Stack
 
@@ -28,8 +29,8 @@ With a Supabase project: fill `.env.local`, then `pnpm db:migrate && pnpm db:see
 ## Status
 
 - [x] Visual direction "Magenta Night" approved
-- [x] Frontend rules + reference page
+- [x] Frontend rules; live reference is the UI kit at `/ui-kit` (dev only)
 - [x] Next.js project setup (skeleton)
 - [x] Backend rules + database schema
-- [ ] Supabase project + Google provider
+- [ ] Supabase project + Google provider (sign-in pages and CRM screens are built; they run in mock mode until this exists)
 - [x] UI foundation (tokens, shadcn, logo) — preview at `/ui-kit`

@@ -1,5 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { requirePermission } from "@/server/auth/session";
+import { StudentShell } from "@/components/layout/StudentShell";
+import { ProjectBrowser, ProjectBrowserFallback } from "@/components/student/ProjectBrowser";
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
   return (
@@ -14,6 +16,11 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 }
 
 async function StudentGuard({ children }: { children: ReactNode }) {
-  await requirePermission("student-area.view");
-  return children;
+  const user = await requirePermission("student-area.view");
+  const identity = { name: user.name, email: user.email, roles: user.roles };
+  return (
+    <StudentShell user={identity} lessonTree={<Suspense fallback={<ProjectBrowserFallback />}><ProjectBrowser /></Suspense>}>
+      {children}
+    </StudentShell>
+  );
 }

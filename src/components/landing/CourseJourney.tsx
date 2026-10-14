@@ -249,6 +249,7 @@ function KnowledgeSplit() {
                 height={720}
                 sizes="(min-width: 1280px) 288px, (min-width: 1024px) 24vw, (min-width: 768px) 30vw, calc(100vw - 32px)"
                 alt={k.alt}
+                unoptimized
                 className="aspect-[4/3] h-auto w-full object-cover"
               />
             </div>

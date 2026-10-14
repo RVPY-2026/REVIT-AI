@@ -20,15 +20,15 @@ Precedence when things conflict: the project owner's instructions > this documen
 | Fonts | **next/font/google** | Lexend, Be Vietnam Pro, IBM Plex Mono — subsets `vietnamese` + `latin` |
 | Forms | **react-hook-form + zod** | Schemas in `src/lib/schemas` |
 | Tables | **TanStack Table** behind one shared `DataTable` component | Sort, filter, pagination, row selection, export |
-| Client data fetching | **TanStack Query** | App areas only (not the marketing pages) |
+| Client data fetching | **TanStack Query** | App areas only (not the marketing pages). *Planned: not installed yet; the CRM screens fetch on the server for now* |
 | Dates | **date-fns** with locale `vi` | |
 | Spreadsheet export | **exceljs**, generated on the server (BACKEND_RULES §7) | The "Xuất Excel" button downloads from `/api/export/<list>` |
 | Toasts | **sonner** (via shadcn) | |
-| Long-form content | MDX (`@next/mdx`) | |
+| Long-form content | MDX (`@next/mdx`) | *Planned: not installed yet (policy pages `/chinh-sach/[slug]` are not built)* |
 | 3D | **three** (plain, no R3F) | Home page `landing/build-story` only. Loaded with a dynamic `import()` after first paint; drawn as an architectural line drawing in the theme colours |
 | Hosting | **Vercel** | |
 | Package manager | **pnpm** | |
-| Lint/format | ESLint (next config) + Prettier + `prettier-plugin-tailwindcss` | |
+| Lint/format | ESLint (next config); Prettier + `prettier-plugin-tailwindcss` | *Prettier is planned, not configured yet* |
 
 Check the current docs (Context7 or the official site) before using any library API above. Do not rely on memory, especially for Tailwind v4 and the Next.js App Router.
 
@@ -53,7 +53,7 @@ src/
     landing/           # marketing sections
     admin/             # DataTable, StatusBadge, KanbanBoard…
     student/
-    icons/             # logo.tsx, brand.tsx, revit.tsx
+    icons/             # logo.tsx, brand.tsx (revit.tsx when the first Revit element icon is needed)
   lib/
     api/               # typed data-access functions (§7)
     schemas/           # zod schemas + inferred types
@@ -165,7 +165,8 @@ Desktop hero (width ≥ 1024px) also responds to viewport height: at width ≥ 1
 - **An icon must carry information the text next to it does not.** Use icons for actions (buttons, external-link arrow, copy, +/−), for status, and in the dense app areas (sidebar, toolbars, table rows). Do **not** put an icon in front of every item of a marketing list or every feature card — an icon that just restates its label ("Tiết kiệm thời gian" → clock, "Chất lượng" → shield) is the template look the owner rejected.
 - Never reuse one icon for different meanings on the same page.
 - Marketing pages show things with **drawings, screenshots or numbers**, in the site's technical-drawing language (§3.7: section marks, elevations, dimension strings, sheets): lists of short statements become numbered notes (`landing/NoteList`: mono `01`, hairline rules); a tool or feature is shown by a drawing or screenshot of what it does, with a one-line caption under it, not as "icon + heading + small text" cards.
-- Where an icon does belong as the lead of an item (mainly app areas), it sits in an **icon tile** (`ui/IconTile`): `primary-soft` background, 12px radius, icon in `--primary`.
+- **The landing page uses no icon tiles and no grids of identical cards** (see `landing/ToolCards`, `landing/ZaloCommunity`). Where an icon does lead an item, it is in the dense app areas, set in an **icon tile** (`ui/IconTile`): `primary-soft` background, 12px radius, icon in `--primary`.
+- **One framed panel per section at most** (`rounded-2xl border bg-card p-6`) for the main action or interactive widget (Zalo join panel, fee calculator). Content that is a list becomes `NoteList`; content that is a feature becomes a drawing with a caption.
 - Domain icons that Lucide lacks (Revit elements: foundation, slab, beam, column, wall, roof) are drawn in-house with the same rules — 24px grid, 1.75 stroke — in `components/icons/revit.tsx`.
 - Icon-only buttons require a Vietnamese `aria-label`.
 - No emoji as UI icons.
@@ -174,7 +175,7 @@ Course journey imagery is additive: keep the existing animated timeline, both ph
 
 ### 3.5 Motion
 
-Light: buttons brighten on hover (`brightness(1.08)`), cards lift 2px, blocks below the fold fade in + rise 16px when scrolled into view. Durations 150–300ms, max 600ms. Respect `prefers-reduced-motion`. Content above the fold on load must never start at `opacity: 0`.
+Light: buttons brighten on hover (`brightness(1.08)`); interactive blocks answer hover with a border or tint change (`hover:border-primary`, `hover:bg-primary-soft`), **never a lift or shadow**; blocks below the fold fade in + rise 16px when scrolled into view. Durations 150–300ms, max 600ms. Respect `prefers-reduced-motion`. Content above the fold on load must never start at `opacity: 0`.
 
 Interactive popups (profile menus, dropdowns, popovers and dialogs) must animate on open and close instead of appearing abruptly. Use the shared Radix/shadcn primitives and state-based motion: open in about 180–220ms with ease-out, close in about 120–160ms with ease-in, combining a subtle fade with a small scale or 4–8px directional slide. Keep the animation origin anchored to the trigger where supported, and preserve the global reduced-motion behavior. Avoid native `<select>` when its option popup needs this motion, since browser/OS menus cannot be animated consistently; use an accessible custom select or dropdown primitive instead.
 
@@ -190,10 +191,11 @@ The audience reads drawings for a living, so marketing pages borrow the vocabula
 
 | Area | Use the drawing language? |
 |---|---|
-| Public marketing pages (`/`, `/khoa-hoc`, `/cong-cu`) | Yes, as the default way to show structure, sequence, price and notes |
+| Public marketing pages (`/` today; `/khoa-hoc` and `/cong-cu` when built) | Yes, as the default way to show structure, sequence, price and notes |
 | Post-submit pages (`/dang-ky/thanh-cong`) | Yes: the "sheet" pattern below |
 | Sign-in, policies, forms | No: plain cards and fields. Clarity beats theme |
-| Student and management areas | **No.** Dense data UI (`DataTable`, `Kanban`, forms) stays neutral; do not use frames, stamps, bubbles or axes there. At most a mono ID or elevation-style label |
+| Student area | **No.** Same sidebar frame as the management area (§4.2). The only Revit cue is the Properties palette (`student/PropertiesPalette`, name/value rows beside a lesson, owner decision); no stamps, bubbles or axes |
+| Management area | **No.** Dense data UI (`DataTable`, `Kanban`, forms) stays neutral; do not use frames, stamps, bubbles or axes there. At most a mono ID or elevation-style label |
 
 **Pick the pattern by the content's shape**
 
@@ -205,7 +207,7 @@ The audience reads drawings for a living, so marketing pages borrow the vocabula
 | Short statements, FAQ, caveats | **Numbered notes / callout bubbles** (circle + mono number) | `landing/NoteList`, `landing/Faq` | The number is the tag; the text stays HTML. Never an icon that restates its label (§3.4) |
 | A confirmation or document the user keeps | **Sheet**: double border, mono sheet label, approval stamp, title block | `/dang-ky/thanh-cong` | Stamp only on a *valid* success state, never on empty or error states. Links become numbered note boxes with the bubble **inside** the box (`pl-2.5`), leader line through the bubble centres |
 | Ownership, version, date, ID of a page | **Title block** (2-column mono table, bottom right) | `layout/PublicFooter`, thank-you sheet | `aria-hidden` when decorative; real data (student ID) stays readable text |
-| Page-wide navigation | **Grid axes** A–F in the margin | `landing/GridAxis` | `2xl` and up only (needs margin space), anchors to real section ids, lit by `IntersectionObserver` |
+| Page-wide navigation | **Grid axes** A–F in the margin | `landing/GridAxis` | `xl` and up (compact bubbles at `xl` to fit the 24px gutter, full size from `2xl`), anchors to real section ids, lit by `IntersectionObserver` |
 | A 3D or spatial explanation | **Line drawing** (three.js, `landing/build-story`) | `BuildStory` | Only on the home page; palette per theme (`light` / `dark` / `blueprint`) |
 
 **Rules for every drawing element**
@@ -232,7 +234,7 @@ The audience reads drawings for a living, so marketing pages borrow the vocabula
 ### 4.1 Public pages
 
 - **Header:** glass background, sticky, **hides on scroll down, reappears on scroll up**. Left: logo. Right: nav links, theme toggle, secondary "sign in" button, primary CTA button. On mobile the links collapse into a `Sheet` behind a menu button.
-- **Hero:** text left, visual right (stacks on mobile). One primary + one secondary button.
+- **Hero:** the home page hero is the first step of the scroll-driven `landing/build-story` (copy left, sticky 3D drawing right, stacks on mobile). Other pages: text left, visual right. One primary + one secondary button.
 - **Sections:** alternate `--background` and `--background-2`. Each section starts with a mono eyebrow label, an h2 (Lexend 300 with a 500-weight emphasis), and one line of muted description.
 - **CTA band** with the band gradient near the bottom; **multi-column footer**; **floating Zalo button** bottom-right (respect `safe-area-inset-bottom`).
 
@@ -241,6 +243,7 @@ The audience reads drawings for a living, so marketing pages borrow the vocabula
 - Desktop: left sidebar 248px (collapsible to 72px, icons only) + top bar (search, theme toggle, avatar menu).
 - Mobile (< 768px): sidebar becomes a **bottom tab bar** with 4–5 main items + a "More" button opening a `Sheet`.
 - Flat `--background`, no gradients, no glass. Gradient survives only on the primary button and the logo.
+- Both areas use the one `layout/AppShell` (sidebar, bottom tab bar, "Thêm" sheet); `ManagementShell` and `StudentShell` only declare their navigation. The first four items stay in the tab bar, the rest move into the sheet.
 - Page header: h1 Lexend 300 at 28px, a one-line description, and an action area on the right.
 
 ### 4.3 Sign-in page
@@ -253,11 +256,13 @@ Single centered card with the Google sign-in button and an email field that send
 
 - **Buttons:** `default` = gradient + shadow (one per view section), `outline` = 1px border, `ghost` for toolbar actions. Labels state the action.
 - **StatusBadge:** pill with 1px border in the status color, text in the same color, no fill. One mapping table in `lib/constants.ts`.
-- **IconTile:** Lucide icon inside a `primary-soft` tile (§3.4).
+- **IconTile:** Lucide icon inside a `primary-soft` tile (§3.4). App areas only; not used on marketing pages.
 - **DataTable:** sticky header; numeric columns right-aligned in mono; toolbar with search, filters and an **"Xuất Excel"** button that exports exactly the filtered rows (file name `rvpy-<list>-<yyyyMMdd>.xlsx`); row actions in a dropdown; becomes a **card list on mobile**.
 - **Kanban view:** columns = statuses, cards draggable, column header shows count.
 - **Destructive or important changes** (status changes, money, access): confirmation `AlertDialog`, then a toast with the result.
-- **Copy-to-clipboard:** button with icon + label, toast "Đã sao chép". Fallback to selecting the text if the clipboard API fails.
+- **Copy-to-clipboard:** phone numbers use an icon-only copy button immediately to their right, with a Vietnamese accessible label; other copy actions use icon + label, toast "Đã sao chép". Fallback to selecting the text if the clipboard API fails.
+- **Inline student editing:** click the value or pencil to edit in place; Save commits one field, Cancel/Escape discards the draft, and errors stay beside that field. Status uses a dropdown in its cell. Preserve immutable student codes, sources and signup dates.
+- **Signup verification:** the public signup uses the shared `SignupVerification` widget. Zalo code renewal stays on the original confirmation page and shows the connected state when appropriate. Both patterns appear in `/ui-kit`. Contact dialogs retain drafts on conflicts and submit their initial field values for optimistic checks.
 - **Forms:** label above field, helper text below, inline error under the field in `--destructive`, submit disabled while pending.
 - **Every data view has four states:** loading (skeleton), data, empty (illustration + how to add the first item), error (message + retry).
 - **Documents shown to students are view-only:** no download button, no direct link to the source file.
@@ -306,7 +311,7 @@ Single centered card with the Google sign-in button and an email field that send
 - Change tokens (color, font, radius) without asking the project owner.
 - Use emoji as UI icons.
 - Paste markup or CSS between pages instead of reusing the shared components and tokens (§10).
-- Use the drawing language (§3.7) in the student or management areas, stack more than two drawing motifs in one section, or put a stamp on a non-success state.
+- Use the drawing language (§3.7) in the management area, or in the student area beyond the Properties palette, stack more than two drawing motifs in one section, or put a stamp on a non-success state.
 
 ---
 
@@ -314,7 +319,7 @@ Single centered card with the Google sign-in button and an email field that send
 
 The live reference for the design is the **UI kit page**, `src/app/ui-kit/page.tsx` (served at `/ui-kit`, development only, not linked anywhere). It replaces the old static HTML mock-up. Open it next to the page you are building; it renders in light, dark and (by typing `blueprint`) the hidden Blueprint theme.
 
-**It shows:** type scale and fonts, color tokens, buttons, inputs, badges, status badges, cards, icon tiles, skeletons, gradients (hero, CTA band), the CRM components, and the drawing-language patterns of §3.7 (numbered notes, callout bubble, level mark, approval stamp, Schedule table, title block).
+**It shows:** type scale and fonts, color tokens, buttons, inputs, badges, status badges, skeletons, gradients (hero, CTA band), the CRM components, the landing patterns (section heading, drawing + caption figure, single framed panel, perk list), and the drawing-language patterns of §3.7 (numbered notes, callout bubble, level mark, approval stamp, Schedule table, title block).
 
 **Sources of truth, in order:** `src/app/globals.css` (token values) → §3 of this document (rules and rationale) → `/ui-kit` (how it looks). When they disagree, fix the one that is wrong; do not work around it.
 

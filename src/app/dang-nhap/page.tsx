@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/icons/logo";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { EmailSignInForm } from "@/components/auth/EmailSignInForm";
+import { MockRolePicker } from "@/components/auth/MockRolePicker";
 import { safeAreaPath } from "@/lib/auth/redirect";
 import { USE_MOCK, hasSupabaseConfig } from "@/lib/runtime-mode";
 import { getCurrentUser } from "@/server/auth/session";
@@ -47,9 +48,9 @@ async function SignInContent({
   if (user?.roles.length) redirect(safeAreaPath(user, params.next));
   if (USE_MOCK || !hasSupabaseConfig())
     return (
-      <p className="text-sm text-muted-foreground">
+      <><p className="text-sm text-muted-foreground">
         Đăng nhập Google chưa được mở trong môi trường này.
-      </p>
+      </p><MockRolePicker /></>
     );
   return (
     <>

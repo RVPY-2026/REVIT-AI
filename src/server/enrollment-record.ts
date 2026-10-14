@@ -4,6 +4,7 @@ import { can, type SessionUser } from "@/lib/auth/permissions";
 import type { Db } from "@/server/db";
 import { studentScope } from "@/server/auth/scope";
 import { audit } from "@/server/audit";
+import { queueTrialThanks } from "@/server/zalo/outbox";
 import { enrollments, lessons, students, studentStatusEvents, studyPlanLessons } from "@/server/db/schema";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -50,6 +51,7 @@ export async function enrollStudent(tx: Tx, user: SessionUser, studentId: string
   }
   await setStage(tx, user, student, formal ? "enrolled" : "trial");
   await audit(tx, { actorId: user.id, action: formal ? "enrollment.formal" : "enrollment.trial", entity: "enrollments", entityId: enrollmentId, data: formal });
+  if (!formal) await queueTrialThanks(tx, studentId, existing?.trialStartedAt ?? now);
   return { id: studentId };
 }
 

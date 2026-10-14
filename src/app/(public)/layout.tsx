@@ -1,14 +1,16 @@
-import { PublicFooter } from "@/components/layout/PublicFooter";
+import { Suspense } from "react";
 import { PublicHeader } from "@/components/layout/PublicHeader";
-import { ZaloFab } from "@/components/layout/ZaloFab";
+import { PublicHeaderWithSession } from "@/components/layout/PublicHeaderWithSession";
+import { PublicPageExtras } from "@/components/layout/PublicPageExtras";
 
 export default function PublicLayout({ children }: LayoutProps<"/">) {
   return (
     <>
-      <PublicHeader />
+      <Suspense fallback={<PublicHeader authPending />}>
+        <PublicHeaderWithSession />
+      </Suspense>
       <main>{children}</main>
-      <PublicFooter />
-      <ZaloFab />
+      <PublicPageExtras />
     </>
   );
 }

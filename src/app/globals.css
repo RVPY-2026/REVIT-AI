@@ -279,3 +279,66 @@
     }
   }
 }
+
+/* Hero opening: headline words rise out of a mask, the key phrase gets a Revit-style selection box,
+   the rest fades in behind. Delays are set inline per element. The global reduced-motion rule above
+   collapses all of it to the final state. */
+@keyframes hero-word {
+  from {
+    transform: translateY(110%);
+  }
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes hero-select {
+  from {
+    background-color: transparent;
+    border-color: transparent;
+  }
+}
+@layer components {
+  .hero-word {
+    display: inline-block;
+    animation: hero-word 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .hero-fade {
+    animation: hero-fade 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .hero-select {
+    border: 1px dashed color-mix(in oklab, var(--primary) 75%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    padding-inline: 0.18em;
+    margin-inline: -0.18em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    animation: hero-select 500ms ease-out both;
+  }
+}
+
+
+/* Student area panels (Revit-style): squarer frame, titled header band. Unlayered so it wins over utilities. */
+.revit-panel {
+  --panel-pad: 1rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  padding: var(--panel-pad);
+}
+@media (min-width: 768px) { .revit-panel { --panel-pad: 1.5rem; } }
+.revit-panel > h2:first-child:not(.sr-only),
+.revit-panel > .revit-panel-head {
+  margin: calc(var(--panel-pad) * -1) calc(var(--panel-pad) * -1) var(--panel-pad);
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 3px 3px 0 0;
+  background: var(--background-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.revit-panel-head h2 { font: inherit; }

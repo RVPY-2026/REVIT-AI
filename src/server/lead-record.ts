@@ -10,6 +10,7 @@ type LeadFields = {
   fullName: string; phone: string; email?: string; occupation?: string;
   birthYear?: number; specialty?: string; hometown?: string; organization?: string;
 };
+export class DuplicateSignupError extends Error {}
 
 /** The caller resolves an active, authorized source before entering this operation. */
 export async function insertLeadRecord(
@@ -23,7 +24,7 @@ export async function insertLeadRecord(
     const [recent] = await tx.select({ id: students.id, code: students.code }).from(students)
       .where(and(eq(students.phone, fields.phone), gte(students.signedUpAt, new Date(signedUpAt.getTime() - 5 * 60_000))))
       .orderBy(desc(students.signedUpAt)).limit(1);
-    if (recent) return recent;
+    if (recent) throw new DuplicateSignupError("Nếu bạn đã đăng ký, hãy mở lại trang cảm ơn trên trình duyệt cũ hoặc liên hệ RVPY qua Zalo nhé.");
   }
   const codeMonth = studentCodeMonth(signedUpAt);
   const [counter] = await tx.insert(sourceMonthCounters)

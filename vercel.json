@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/zalo-outbox",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { ZALO_GROUPS } from "@/lib/constants";
 import { signOut } from "@/server/actions/auth";
 
 export const metadata: Metadata = {
-  title: "Tài khoản chưa được kích hoạt",
+  title: "Tài khoản cần được kiểm tra",
   robots: { index: false, follow: false },
 };
 
@@ -14,11 +14,11 @@ export default function InactiveAccountPage() {
     <main className="content grid min-h-dvh place-items-center py-12">
       <div className="max-w-lg rounded-2xl border border-border bg-card p-6 sm:p-8">
         <h1 className="text-[28px] font-light">
-          Tài khoản chưa được kích hoạt
+          Tài khoản cần được kiểm tra
         </h1>
         <p className="mt-4 text-muted-foreground">
-          Gmail của bạn chưa được cấp quyền truy cập. Bạn liên hệ người tư vấn
-          RVPY qua Zalo để kiểm tra và kích hoạt tài khoản nhé.
+          Tài khoản này đang bị tạm khóa hoặc cần được hỗ trợ. Bạn liên hệ
+          RVPY qua Zalo để kiểm tra nhé.
         </p>
         <Button asChild className="mt-6">
           <a

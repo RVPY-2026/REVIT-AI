@@ -8,9 +8,15 @@ import { changeKanbanStage, enrollStudent, EnrollmentError } from "@/server/enro
 import type { ActionResult } from "@/server/result";
 import type { z } from "zod";
 import type { Permission, SessionUser } from "@/lib/auth/permissions";
+import { USE_MOCK } from "@/lib/runtime-mode";
+import { drainZaloOutbox } from "@/server/zalo/outbox";
 
 async function mutate<T>(schema: z.ZodType<T>, input: unknown, permission: Permission,
   operation: (user: SessionUser, data: T) => Promise<{ id: string }>): Promise<ActionResult<{ id: string }>> {
+  if (USE_MOCK) {
+    await requirePermission(permission);
+    return { ok: false, error: "Chế độ xem thử chưa lưu thay đổi. Bạn dùng dữ liệu thật để cập nhật học viên." };
+  }
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Thông tin chưa hợp lệ." };
   const user = await requirePermission(permission);
@@ -29,7 +35,9 @@ export async function updateKanbanStage(input: unknown) {
   return mutate(kanbanStageSchema, input, "students.edit", (user, data) => db.transaction((tx) => changeKanbanStage(tx, user, data.studentId, data.status)));
 }
 export async function openTrialEnrollment(input: unknown) {
-  return mutate(trialEnrollmentSchema, input, "enrollments.trial", (user, data) => db.transaction((tx) => enrollStudent(tx, user, data.studentId)));
+  const result = await mutate(trialEnrollmentSchema, input, "enrollments.trial", (user, data) => db.transaction((tx) => enrollStudent(tx, user, data.studentId)));
+  if (result.ok) await drainZaloOutbox(10).catch(() => undefined);
+  return result;
 }
 export async function activateFormalEnrollment(input: unknown) {
   return mutate(formalEnrollmentSchema, input, "enrollments.formal", (user, data) => db.transaction((tx) => enrollStudent(tx, user, data.studentId, data)));

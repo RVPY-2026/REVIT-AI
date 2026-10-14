@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { requirePermission } from "@/server/auth/session";
+import { ManagementShell } from "@/components/layout/ManagementShell";
 
 export default function ManagementLayout({
   children,
@@ -18,6 +19,9 @@ export default function ManagementLayout({
 }
 
 async function ManagementGuard({ children }: { children: ReactNode }) {
-  await requirePermission("admin-area.view");
-  return children;
+  const user = await requirePermission("admin-area.view");
+  const identity = { name: user.name, email: user.email, roles: user.roles };
+  return (
+    <ManagementShell user={identity}>{children}</ManagementShell>
+  );
 }

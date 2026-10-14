@@ -16,6 +16,9 @@
 # next.js
 /.next/
 /.next-signup-check/
+/.next-crm-check/
+/.next-filter-preview/
+/.next-onboarding-preview/
 /out/
 
 # production
@@ -44,3 +47,10 @@ next-env.d.ts
 
 # allow the env template
 !.env.example
+
+# Local tool output and full-size source images (the site serves the .webp exports)
+.playwright-mcp/
+design/source-images/
+
+# Local Netlify folder
+.netlify
