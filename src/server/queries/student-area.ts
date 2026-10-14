@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { SessionUser } from "@/lib/auth/permissions";
 import {
   allowedAudiences, canOpenLesson, hasLearningAccess, lessonState, resourceFormat, trialEndsAt,
@@ -115,7 +115,13 @@ async function visibleResources(user: SessionUser, conn: Db, extra?: SQL) {
   if (!row) return [];
   const enrollment = row.kind && row.status ? { kind: row.kind, status: row.status } : null;
   const lessonAccess = !enrollment || !hasLearningAccess(enrollment) ? isNull(learningResources.lessonId)
-    : enrollment.kind === "trial" ? or(isNull(learningResources.lessonId), isNotNull(lessons.trialOrder))
+    : enrollment.kind === "trial" ? or(isNull(learningResources.lessonId), sql`exists (
+      select 1 from ${studyPlanLessons}
+      join ${enrollments} on ${enrollments.id} = ${studyPlanLessons.enrollmentId}
+      join ${students} on ${students.id} = ${enrollments.studentId}
+      where ${studyPlanLessons.lessonId} = ${learningResources.lessonId}
+        and ${studyPlanLessons.trialOrder} is not null and ${own(user)}
+    )`)
     : undefined;
   return conn.select({
     id: learningResources.id, title: learningResources.title, lessonId: learningResources.lessonId,

@@ -7,3 +7,4 @@ export * from "./learning";
 export * from "./feedback";
 export * from "./zalo";
 export * from "./signup";
+export * from "./learning-uploads";
