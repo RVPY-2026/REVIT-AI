@@ -90,6 +90,7 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
           <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
             <StudentLearning studentId={id} contactEmail={student.email} user={user} />
           </Suspense>
+          <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>{await import("@/components/admin/StudentLearningProgress").then(({ StudentLearningProgress }) => <StudentLearningProgress studentId={id} />)}</Suspense>
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><UserRound aria-hidden="true" size={18} strokeWidth={1.75} />Thông tin đăng ký</CardTitle></CardHeader>
             <CardContent>

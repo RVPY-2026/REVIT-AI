@@ -12,17 +12,23 @@ export function DataTable<TData extends RowData>({
   data,
   mobileCards,
   rowKey,
+  tabletCards = false,
+  cardsOnly = false,
+  listLabel = "Danh sách học viên",
 }: {
   columns: Array<DataTableColumn<TData>>
   data: TData[]
   mobileCards: (item: TData) => ReactNode
   rowKey?: (item: TData) => string
+  tabletCards?: boolean
+  cardsOnly?: boolean
+  listLabel?: string
 }) {
   const table = useTable({ features: dataTableFeatures, columns, data })
 
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
+      {!cardsOnly && <div className={tabletCards ? "hidden overflow-x-auto rounded-2xl border border-border lg:block" : "hidden overflow-x-auto rounded-2xl border border-border md:block"}>
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -47,8 +53,8 @@ export function DataTable<TData extends RowData>({
             ))}
           </tbody>
         </table>
-      </div>
-      <ul className="grid gap-3 md:hidden" aria-label="Danh sách học viên">
+      </div>}
+      <ul className={cardsOnly ? "grid gap-3 lg:grid-cols-2" : tabletCards ? "grid gap-3 lg:hidden" : "grid gap-3 md:hidden"} aria-label={listLabel}>
         {data.map((item, index) => <li key={rowKey?.(item) ?? index}>{mobileCards(item)}</li>)}
       </ul>
     </>

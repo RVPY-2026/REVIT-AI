@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { FileUp, LayoutDashboard, Users, MessageSquare, ShieldCheck } from "lucide-react";
+import { FileUp, LayoutDashboard, Users, MessageSquare, ShieldCheck, BookOpen, FileText } from "lucide-react";
 import { AppShell, type NavGroup } from "@/components/layout/AppShell";
 import { Input } from "@/components/ui/input";
 import { can, type SessionUser } from "@/lib/auth/permissions";
@@ -19,6 +19,10 @@ const navigationGroups = [
   ] },
   { label: "Hệ thống", items: [
     { href: "/quan-tri/phan-quyen", label: "Phân quyền", icon: ShieldCheck, permission: "roles.manage" },
+  ] },
+  { label: "Học tập", items: [
+    { href: "/quan-tri/tai-lieu", label: "Tài liệu", icon: FileText, permission: "resources.manage" },
+    { href: "/quan-tri/chuong-trinh", label: "Chương trình học", icon: BookOpen, permission: "lessons.manage" },
   ] },
 ] as const;
 

@@ -11,6 +11,7 @@ import { TitleBlock } from "@/components/layout/TitleBlock";
 import { CrmComponentShowcase } from "@/components/layout/CrmComponentShowcase";
 import { StudentComponentShowcase } from "@/components/layout/StudentComponentShowcase";
 import { SignupProtectionShowcase } from "@/components/public/SignupProtectionShowcase";
+import { LearningContentShowcase } from "@/components/admin/LearningContentShowcase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +29,7 @@ export default function UiKitPage() {
 
   return (
     <main className="content grid gap-14 py-12">
+      <LearningContentShowcase />
       <header className="flex flex-wrap items-center gap-4">
         <Logo className="h-[22px] w-auto" />
         <span className="font-heading text-[13px] font-light text-muted-foreground">Ocean Studio</span>
