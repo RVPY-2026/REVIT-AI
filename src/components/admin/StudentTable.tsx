@@ -10,17 +10,20 @@ import { DataTable, dataTableFeatures } from "@/components/admin/DataTable"
 import { ClipboardButton } from "@/components/admin/ClipboardButton"
 import { FollowUpBadge } from "@/components/admin/FollowUpBadge"
 import { StatusCell } from "@/components/admin/StatusCell"
+import { DroppedReasonDialog } from "@/components/admin/DroppedReasonDialog"
+import { TrialSummary } from "@/components/admin/TrialSummary"
+import { DROPPED_REASON_LABELS, type DROPPED_REASONS } from "@/lib/crm"
 import { StudentActionMenu } from "@/components/admin/StudentActionMenu"
 import { Button } from "@/components/ui/button"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { STUDENT_STATUSES, STUDENT_STATUS_META, zaloChatUrl, type StudentStatus } from "@/lib/constants"
+import { STUDENT_STATUS_META, zaloChatUrl, type StudentStatus } from "@/lib/constants"
 import { isActiveStatus } from "@/lib/follow-up"
 import { formatDate, formatPhone } from "@/lib/format"
 import { USE_MOCK } from "@/lib/runtime-mode"
 import { DEFAULT_SORT_DIR, type StudentFilter, type StudentSort, type StudentSummary } from "@/lib/schemas/student"
 import { studentListHref } from "@/lib/student-filter-url"
 import { bulkUpdateStudentStatus } from "@/server/actions/student-status"
+import { selectStudentsByFilter } from "@/server/actions/student-selection"
 
 type TableItem = StudentSummary
 
@@ -30,13 +33,16 @@ type Props = {
   canExport?: boolean
   filter?: StudentFilter
   preview?: boolean
+  total?: number
 }
 
-export function StudentTable({ rows, editable, canExport = false, filter = {}, preview = false }: Props) {
+export function StudentTable({ rows, editable, canExport = false, filter = {}, preview = false, total = rows.length }: Props) {
   const router = useRouter()
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [bulkTarget, setBulkTarget] = useState<StudentStatus | null>(null)
   const [pending, setPending] = useState(false)
+  const [matching, setMatching] = useState(false)
+  const [snapshots, setSnapshots] = useState<Record<string, StudentStatus>>(() => Object.fromEntries(rows.map(row => [row.id,row.status])))
   const selectable = editable || canExport
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.id))
   const blocked = USE_MOCK || preview
@@ -47,22 +53,31 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
   function toggleAll() {
     setSelected(allSelected ? new Set() : new Set(rows.map((row) => row.id)))
   }
-  async function applyBulk() {
-    if (!bulkTarget || pending || blocked) return
+  async function applyBulk(target: "consulting" | "dropped", reason?: typeof DROPPED_REASONS[number], note?: string) {
+    if (pending || blocked) { if (blocked) toast.error("Chế độ xem thử chưa lưu thay đổi."); return }
     setPending(true)
     try {
-      const result = await bulkUpdateStudentStatus({ studentIds: [...selected], status: bulkTarget })
+      const result = await bulkUpdateStudentStatus({ studentIds: [...selected], status: target, expectedStatuses: snapshots, ...(matching ? { filter } : {}), reason, note })
       if (!result.ok) { toast.error(result.error); return }
-      toast.success(`Đã chuyển ${result.data.updated} học viên sang “${STUDENT_STATUS_META[bulkTarget].label}”`)
+      toast.success(`Đã chuyển ${result.data.updated} học viên sang “${STUDENT_STATUS_META[target].label}”${result.data.skipped.length ? ` · Bỏ qua ${result.data.skipped.length} hồ sơ đã thay đổi` : ""}`)
       setSelected(new Set())
       setBulkTarget(null)
+      setMatching(false)
       router.refresh()
     } catch { toast.error("Chưa thể cập nhật trạng thái. Bạn thử lại sau nhé.") }
     finally { setPending(false) }
   }
+  async function selectMatching() {
+    setPending(true)
+    try {
+      const rows = await selectStudentsByFilter(filter)
+      setSelected(new Set(rows.map(row => row.id))); setSnapshots(Object.fromEntries(rows.map(row => [row.id,row.status]))); setMatching(true)
+    } catch { toast.error("Chưa thể chọn kết quả. Bạn thử lại nhé.") }
+    finally { setPending(false) }
+  }
 
   const checkbox = (checked: boolean, onChange: () => void, label: string) => (
-    <input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="size-4 cursor-pointer accent-[var(--primary)]" />
+    <label className="inline-flex size-11 items-center justify-center"><input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="size-4 cursor-pointer accent-[var(--primary)]" /></label>
   )
 
   const columns: Array<ColumnDef<typeof dataTableFeatures, TableItem>> = [
@@ -78,6 +93,7 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
         <div className="min-w-40">
           <Link href={`/quan-tri/hoc-vien/${row.original.id}`} className="font-medium underline-offset-4 hover:text-primary hover:underline">{row.original.fullName}</Link>
           <div className="mt-0.5 font-mono text-xs text-muted-foreground">{row.original.code}</div>
+          {row.original.duplicatePhone && <span className="text-xs text-warning">Trùng SĐT</span>}
         </div>
       ),
     },
@@ -100,8 +116,9 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
     {
       accessorKey: "status",
       header: () => <SortHeader filter={filter} sort="status" label="Trạng thái" />,
-      cell: ({ row }) => <StatusCell studentId={row.original.id} fullName={row.original.fullName} status={row.original.status} editable={editable} preview={preview} />,
+      cell: ({ row }) => <div><StatusCell studentId={row.original.id} fullName={row.original.fullName} status={row.original.status} droppedReason={row.original.droppedReason} droppedNote={row.original.droppedNote} editable={editable && !row.original.archivedAt} preview={preview} />{row.original.status === "dropped" && row.original.droppedReason && <p className="mt-1 text-xs text-muted-foreground" title={row.original.droppedNote ?? undefined}>{DROPPED_REASON_LABELS[row.original.droppedReason]}</p>}</div>,
     },
+    { id: "trial", header: "Học thử", cell: ({ row }) => <TrialSummary student={row.original} /> },
     {
       id: "lastContactAt",
       header: () => <SortHeader filter={filter} sort="lastContactAt" label="Liên hệ gần nhất" />,
@@ -121,33 +138,22 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
 
   const selectedIds = [...selected]
   return <>
+    {allSelected && !matching && total > rows.length && <Button variant="outline" className="mb-3 h-auto min-h-11 whitespace-normal" disabled={pending} onClick={() => { void selectMatching() }}>Chọn tất cả {total} kết quả khớp bộ lọc</Button>}
+    {matching && total > 100 && <p role="status" className="mb-3 text-sm text-warning">Có {total} kết quả. Mỗi lần chỉ chọn tối đa 100 hồ sơ; bạn thu hẹp bộ lọc để xử lý tiếp.</p>}
     <DataTable columns={columns} data={rows} rowKey={(student) => student.id} mobileCards={(student) => <StudentCard student={student} editable={editable} preview={preview} selected={selectable ? selected.has(student.id) : undefined} onToggle={() => toggle(student.id)} />} />
     {selected.size > 0 && <div role="region" aria-label="Thao tác với học viên đã chọn" className="sticky bottom-20 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary bg-popover p-3 shadow-lg md:bottom-4">
       <p className="mr-auto text-sm font-medium"><span className="font-mono tabular-nums">{selected.size}</span> học viên đã chọn</p>
       {editable && <DropdownMenu>
         <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm">Đổi trạng thái</Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {STUDENT_STATUSES.map((status) => <DropdownMenuItem key={status} onSelect={() => setBulkTarget(status)}>{STUDENT_STATUS_META[status].label}</DropdownMenuItem>)}
+          <DropdownMenuItem className="min-h-11" onSelect={() => { void applyBulk("consulting") }}>{STUDENT_STATUS_META.consulting.label}</DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11" onSelect={() => setBulkTarget("dropped")}>{STUDENT_STATUS_META.dropped.label}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>}
       {canExport && <Button asChild variant="outline" size="sm"><a href={`/api/export/students?ids=${selectedIds.join(",")}`}><ArrowDownToLine aria-hidden="true" strokeWidth={1.75} />Xuất Excel</a></Button>}
-      <Button type="button" variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Bỏ chọn</Button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => { setSelected(new Set()); setMatching(false) }}>Bỏ chọn</Button>
     </div>}
-    <AlertDialog open={bulkTarget !== null} onOpenChange={(open) => { if (!open && !pending) setBulkTarget(null) }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Đổi trạng thái {selected.size} học viên?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Tất cả học viên đã chọn sẽ chuyển sang “{bulkTarget ? STUDENT_STATUS_META[bulkTarget].label : ""}”. Mỗi thay đổi được ghi vào lịch sử hồ sơ; thao tác này không kích hoạt quyền học hay thay đổi học phí.
-            {blocked && " Chế độ xem thử chưa lưu thay đổi."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Giữ nguyên</AlertDialogCancel>
-          <AlertDialogAction disabled={pending || blocked} onClick={(event) => { event.preventDefault(); void applyBulk() }}>{pending ? "Đang lưu…" : "Xác nhận đổi"}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DroppedReasonDialog open={bulkTarget === "dropped"} onOpenChange={open => { if (!open) setBulkTarget(null) }} pending={pending} preview={blocked} onConfirm={async data => { await applyBulk("dropped", data.reason, data.note) }} />
   </>
 }
 
@@ -167,14 +173,17 @@ function StudentCard({ student, editable, preview, selected, onToggle }: { stude
     <article className={`grid gap-3 rounded-2xl border bg-card p-4 ${selected ? "border-primary" : "border-border"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          {selected !== undefined && <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Chọn ${student.fullName}`} className="mt-1 size-5 shrink-0 cursor-pointer accent-[var(--primary)]" />}
+          {selected !== undefined && <label className="inline-flex size-11 shrink-0 items-center justify-center"><input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Chọn ${student.fullName}`} className="size-5 cursor-pointer accent-[var(--primary)]" /></label>}
           <div className="min-w-0">
             <Link href={`/quan-tri/hoc-vien/${student.id}`} className="font-medium underline-offset-4 hover:text-primary hover:underline">{student.fullName}</Link>
             <p className="mt-1 font-mono text-xs text-muted-foreground">{student.code} · nguồn {student.sourceCode}</p>
           </div>
         </div>
-        <StatusCell studentId={student.id} fullName={student.fullName} status={student.status} editable={editable} preview={preview} />
+        <StatusCell studentId={student.id} fullName={student.fullName} status={student.status} droppedReason={student.droppedReason} droppedNote={student.droppedNote} editable={editable && !student.archivedAt} preview={preview} />
       </div>
+      {student.duplicatePhone && <span className="text-xs text-warning">Trùng SĐT</span>}
+      {student.status === "dropped" && student.droppedReason && <p className="text-xs text-muted-foreground" title={student.droppedNote ?? undefined}>{DROPPED_REASON_LABELS[student.droppedReason]}</p>}
+      <TrialSummary student={student} />
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <FollowUpBadge student={student} />
         <span className="text-muted-foreground tabular-nums">Đăng ký {formatDate(student.signedUpAt)}</span>

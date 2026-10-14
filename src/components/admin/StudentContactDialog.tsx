@@ -2,11 +2,14 @@
 
 import { useId, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Pencil } from "lucide-react"
 import { updateStudentContact } from "@/server/actions/student-contact"
+import { checkStudentPhone } from "@/server/actions/student-phone"
+import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning"
+import type { PhoneMatch } from "@/server/phone-matches"
 import { updateStudentContactSchema, type UpdateStudentContactInput } from "@/lib/schemas/student-contact"
 import { USE_MOCK } from "@/lib/runtime-mode"
 import { Button } from "@/components/ui/button"
@@ -26,6 +29,7 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  const [confirmation, setConfirmation] = useState<{ phone: string; matches: PhoneMatch[] } | null>(null)
   const mockBlocked = USE_MOCK || preview
   const fieldPrefix = useId().replaceAll(":", "")
   const contactSchema = updateStudentContactSchema.omit({ studentId: true })
@@ -35,11 +39,18 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
     defaultValues: { fullName: student.fullName, phone: student.phone, email: student.email ?? "" },
   })
 
+  const phone = useWatch({ control: form.control, name: "phone" })
+
   async function submit(values: ContactValues) {
     if (pending || mockBlocked) return
     setPending(true)
     try {
-      const result = await updateStudentContact({ studentId: student.id, ...values, expected })
+      const duplicateAcknowledged = confirmation?.phone === values.phone
+      if (values.phone !== expected.phone) {
+        const matches = await checkStudentPhone({ phone: values.phone, excludeId: student.id })
+        if (matches.length && !duplicateAcknowledged) { setConfirmation({ phone: values.phone, matches }); return }
+      }
+      const result = await updateStudentContact({ studentId: student.id, ...values, expected, duplicateAcknowledged })
       if (!result.ok) {
         if (result.fieldErrors) {
           for (const [field, messages] of Object.entries(result.fieldErrors)) {
@@ -66,6 +77,7 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
   function changeOpen(next: boolean) {
     if (pending) return
     if (next) {
+      setConfirmation(null)
       setExpected({ fullName: student.fullName, phone: student.phone, email: student.email })
       form.reset({ fullName: student.fullName, phone: student.phone, email: student.email ?? "" })
     }
@@ -75,7 +87,7 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
 
   return <Dialog open={dialogOpen} onOpenChange={changeOpen}>
     {trigger && <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><Pencil aria-hidden="true" strokeWidth={1.75} />Sửa thông tin</Button></DialogTrigger>}
-    <DialogContent>
+    <DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
       <DialogHeader>
         <DialogTitle>Sửa thông tin liên hệ</DialogTitle>
         <DialogDescription>Cập nhật họ tên, số điện thoại và email liên hệ của học viên.</DialogDescription>
@@ -91,9 +103,10 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
         <ContactField id={`${fieldPrefix}-email`} label={<>Email liên hệ <span className="font-normal text-muted-foreground">(để trống để xóa)</span></>} error={form.formState.errors.email?.message}>
           <Input id={`${fieldPrefix}-email`} type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} aria-describedby={form.formState.errors.email ? `${fieldPrefix}-email-error` : undefined} {...form.register("email")} />
         </ContactField>
+        <DuplicatePhoneWarning matches={confirmation?.phone === phone ? confirmation.matches : []} />
         <DialogFooter className="pt-1">
           <Button type="button" variant="outline" disabled={pending} onClick={() => changeOpen(false)}>Hủy</Button>
-          <Button type="submit" disabled={pending || mockBlocked}>{pending ? "Đang lưu…" : "Lưu thay đổi"}</Button>
+          <Button type="submit" disabled={pending || mockBlocked}>{pending ? "Đang lưu…" : confirmation?.phone === phone ? "Vẫn lưu số trùng" : "Lưu thay đổi"}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

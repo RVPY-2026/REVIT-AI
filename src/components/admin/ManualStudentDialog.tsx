@@ -8,6 +8,10 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { createManualLead } from "@/server/actions/leads"
+import { checkStudentPhone } from "@/server/actions/student-phone"
+import { DuplicatePhoneWarning, usePhoneMatches } from "@/components/admin/DuplicatePhoneWarning"
+import type { PhoneMatch } from "@/server/phone-matches"
+import { normalizePhone } from "@/lib/phone"
 import { manualLeadSchema, type ManualLeadInput } from "@/lib/schemas/lead"
 import { USE_MOCK } from "@/lib/runtime-mode"
 import { Button } from "@/components/ui/button"
@@ -25,6 +29,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  const [confirmation, setConfirmation] = useState<{ phone: string; matches: PhoneMatch[] } | null>(null)
   const fieldPrefix = useId().replaceAll(":", "")
   const availableSources = sources.filter((source) => source.active !== false)
   const form = useForm<CreateStudentForm, unknown, z.output<typeof createStudentFormSchema>>({
@@ -32,6 +37,8 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
     defaultValues: { fullName: "", phone: "", email: "", sourceId: availableSources[0]?.id ?? "" },
   })
   const sourceId = useWatch({ control: form.control, name: "sourceId" })
+  const phone = useWatch({ control: form.control, name: "phone" })
+  const matches = usePhoneMatches(phone)
   const selectedSource = availableSources.find((source) => source.id === sourceId)
   const mockBlocked = USE_MOCK || preview
 
@@ -39,7 +46,10 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
     if (pending || mockBlocked) return
     setPending(true)
     try {
-      const result = await createManualLead(values as ManualLeadInput)
+      const duplicateAcknowledged = Boolean(confirmation && normalizePhone(confirmation.phone) === values.phone)
+      const checked = await checkStudentPhone({ phone: values.phone })
+      if (checked.length && !duplicateAcknowledged) { setConfirmation({ phone, matches: checked }); return }
+      const result = await createManualLead({ ...values, duplicateAcknowledged } as ManualLeadInput)
       if (!result.ok) {
         if (result.fieldErrors) {
           for (const [field, messages] of Object.entries(result.fieldErrors)) {
@@ -54,6 +64,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
       toast.success(`Đã thêm học viên ${result.data.code}`)
       setOpen(false)
       form.reset()
+      setConfirmation(null)
       router.push(`/quan-tri/hoc-vien/${result.data.id}`)
       router.refresh()
     } catch {
@@ -63,11 +74,11 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
     }
   }
 
-  return <Dialog open={open} onOpenChange={(next) => { if (!pending) setOpen(next) }}>
+  return <Dialog open={open} onOpenChange={(next) => { if (!pending) { setOpen(next); setConfirmation(null) } }}>
     <DialogTrigger asChild>
       <Button type="button" size="sm"><Plus aria-hidden="true" strokeWidth={1.75} />Thêm học viên</Button>
     </DialogTrigger>
-    <DialogContent>
+    <DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
       <DialogHeader>
         <DialogTitle>Thêm học viên</DialogTitle>
         <DialogDescription>Nhập thông tin liên hệ cơ bản và chọn nguồn đăng ký.</DialogDescription>
@@ -89,6 +100,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
           <Input id={`${fieldPrefix}-email`} type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} aria-describedby={form.formState.errors.email ? `${fieldPrefix}-email-error` : undefined} {...form.register("email")} />
           <FieldError id={`${fieldPrefix}-email-error`} message={form.formState.errors.email?.message} />
         </div>
+        <DuplicatePhoneWarning matches={confirmation?.phone === phone ? confirmation.matches : matches} />
         <div className="grid gap-2">
           <Label id={`${fieldPrefix}-source-label`}>Nguồn đăng ký</Label>
           {availableSources.length ? <DropdownMenu>
@@ -107,7 +119,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
         </div>
         <DialogFooter className="pt-1">
           <Button type="button" variant="outline" disabled={pending} onClick={() => setOpen(false)}>Đóng</Button>
-          <Button type="submit" disabled={pending || mockBlocked || !availableSources.length}>{pending ? "Đang lưu…" : "Tạo hồ sơ"}</Button>
+          <Button type="submit" disabled={pending || mockBlocked || !availableSources.length}>{pending ? "Đang lưu…" : confirmation?.phone === phone ? "Vẫn tạo hồ sơ mới" : "Tạo hồ sơ"}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

@@ -5,25 +5,18 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { GripVertical } from "lucide-react"
 import { toast } from "sonner"
-import { updateKanbanStage } from "@/server/actions/enrollments"
+import { updateStudentStatus } from "@/server/actions/student-status"
+import { DroppedReasonDialog } from "@/components/admin/DroppedReasonDialog"
+import { TrialSummary } from "@/components/admin/TrialSummary"
+import { USE_MOCK } from "@/lib/runtime-mode"
+import type { DROPPED_REASONS } from "@/lib/crm"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { STUDENT_STATUS_META, type StudentStatus } from "@/lib/constants"
 import { formatDate } from "@/lib/format"
 import type { StudentSummary } from "@/lib/schemas/student"
 import { ClipboardButton } from "@/components/admin/ClipboardButton"
 import { FollowUpBadge } from "@/components/admin/FollowUpBadge"
 import { StatusCell } from "@/components/admin/StatusCell"
-import { StatusBadge } from "@/components/admin/StatusBadge"
 
 export type KanbanColumnData = {
   status: StudentStatus
@@ -32,7 +25,7 @@ export type KanbanColumnData = {
 }
 
 type MoveIntent = { student: StudentSummary; status: StudentStatus }
-const movable = new Set<StudentStatus>(["new", "consulting", "dropped"])
+
 
 export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]; editable: boolean }) {
   const router = useRouter()
@@ -41,24 +34,23 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
   const [dragged, setDragged] = useState<StudentSummary | null>(null)
   const limitedColumns = columns.some((column) => column.count > column.rows.length)
 
-  async function confirmMove() {
-    if (!intent || pending) return
+  async function move(intent: MoveIntent, reason?: typeof DROPPED_REASONS[number], note?: string, undo = false) {
+    if (pending) return
     setPending(true)
     try {
-      const result = await updateKanbanStage({ studentId: intent.student.id, status: intent.status })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Đã chuyển trạng thái học viên")
+      const result = await updateStudentStatus({ studentId: intent.student.id, status: intent.status, expectedStatus: intent.student.status, reason, note })
+      if (!result.ok) { toast.error(result.error); return }
       setIntent(null)
       router.refresh()
-    } catch {
-      toast.error("Chưa thể cập nhật trạng thái. Bạn thử lại sau nhé.")
-    } finally {
-      setPending(false)
-      setDragged(null)
-    }
+      toast.success(undo ? "Đã hoàn tác" : intent.status === "trial" || intent.status === "enrolled" ? "Đã đổi phân loại. Vào hồ sơ để mở học thử / ghi danh." : "Đã chuyển trạng thái học viên", {
+        duration: 8000, ...(!undo ? { action: { label: "Hoàn tác", onClick: () => {
+          const reverse = { student: { ...intent.student, status: intent.status }, status: intent.student.status }
+          if (reverse.status === "dropped" && !intent.student.droppedReason) setIntent(reverse)
+          else void move(reverse, intent.student.droppedReason ?? undefined, intent.student.droppedNote ?? undefined, true)
+        } } } : {}),
+      })
+    } catch { toast.error("Chưa thể cập nhật trạng thái. Bạn thử lại sau nhé.") }
+    finally { setPending(false); setDragged(null) }
   }
 
   return (
@@ -68,15 +60,17 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
         {columns.map((column) => (
           <section
             key={column.status}
-            className={`min-w-0 rounded-2xl border border-border bg-background-2/60 p-3 transition-colors ${dragged && movable.has(dragged.status) && movable.has(column.status) ? "border-primary bg-primary-soft/40" : ""}`}
+            className={`min-w-0 rounded-2xl border border-border bg-background-2/60 p-3 transition-colors ${dragged && !dragged.archivedAt ? "border-primary bg-primary-soft/40" : ""}`}
             aria-label={`${STUDENT_STATUS_META[column.status].label}: ${column.count} học viên`}
             onDragOver={(event) => {
-              if (dragged && movable.has(dragged.status) && movable.has(column.status)) event.preventDefault()
+              if (dragged && !dragged.archivedAt) event.preventDefault()
             }}
             onDrop={(event) => {
               event.preventDefault()
-              if (dragged && dragged.status !== column.status && movable.has(dragged.status) && movable.has(column.status)) {
-                setIntent({ student: dragged, status: column.status })
+              if (dragged && !dragged.archivedAt && dragged.status !== column.status) {
+                const next = { student: dragged, status: column.status }
+                if (column.status === "dropped") setIntent(next)
+                else void move(next)
               }
               setDragged(null)
             }}
@@ -90,8 +84,8 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
                 <li key={student.id}>
                   <Card
                     size="sm"
-                    draggable={editable && movable.has(student.status)}
-                    onDragStart={() => setDragged(student)}
+                    draggable={editable && !student.archivedAt}
+                    onDragStart={(event) => { if (!window.matchMedia("(pointer: fine)").matches || student.archivedAt) event.preventDefault(); else setDragged(student) }}
                     onDragEnd={() => setDragged(null)}
                     className={dragged?.id === student.id ? "opacity-50" : ""}
                   >
@@ -101,15 +95,16 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
                           <Link href={`/quan-tri/hoc-vien/${student.id}`} className="line-clamp-2 text-sm font-medium text-foreground underline-offset-4 hover:text-primary hover:underline">{student.fullName}</Link>
                           <p className="mt-1 font-mono text-[11px] text-muted-foreground">{student.code}</p>
                         </div>
-                        {editable && movable.has(student.status) ? <GripVertical aria-label="Kéo để chuyển cột" className="size-4 shrink-0 cursor-grab text-muted-foreground" strokeWidth={1.75} /> : <StatusBadge status={student.status} />}
+                        {editable && !student.archivedAt && <GripVertical aria-label="Kéo để chuyển cột" className="hidden size-4 shrink-0 cursor-grab text-muted-foreground [@media(pointer:fine)]:block" strokeWidth={1.75} />}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         <a href={`tel:${student.phone}`} className="font-mono text-foreground hover:text-primary">{student.phone}</a><ClipboardButton text={student.phone} label="Sao chép số điện thoại" iconOnly />
                         <span className="px-1.5">·</span>{formatDate(student.signedUpAt)}
                       </div>
+                      <TrialSummary student={student} />
                       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
                         <FollowUpBadge student={student} />
-                        {editable && <StatusCell studentId={student.id} fullName={student.fullName} status={student.status} editable />}
+                        {editable && !student.archivedAt && <StatusCell studentId={student.id} fullName={student.fullName} status={student.status} droppedReason={student.droppedReason} droppedNote={student.droppedNote} editable />}
                       </div>
                     </CardContent>
                   </Card>
@@ -120,22 +115,7 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
           </section>
         ))}
       </div>
-      <AlertDialog open={intent !== null} onOpenChange={(open) => !open && !pending && setIntent(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận đổi trạng thái</AlertDialogTitle>
-            <AlertDialogDescription>
-              Chuyển {intent?.student.fullName} sang “{intent ? STUDENT_STATUS_META[intent.status].label : ""}”? Thay đổi sẽ được ghi vào lịch sử hồ sơ.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>Giữ nguyên</AlertDialogCancel>
-            <AlertDialogAction disabled={pending} onClick={(event) => { event.preventDefault(); void confirmMove() }}>
-              {pending ? "Đang cập nhật…" : "Xác nhận chuyển"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DroppedReasonDialog open={intent !== null} onOpenChange={open => { if (!open) setIntent(null) }} pending={pending} preview={USE_MOCK} onConfirm={async data => { if (intent) await move(intent, data.reason, data.note) }} />
     </>
   )
 }

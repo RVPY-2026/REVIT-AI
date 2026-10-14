@@ -22,7 +22,7 @@ export function DataTable<TData extends RowData>({
 
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
+      <div className="relative hidden min-w-0 overflow-x-auto rounded-2xl border border-border md:block">
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (

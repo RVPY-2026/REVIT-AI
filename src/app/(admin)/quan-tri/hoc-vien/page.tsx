@@ -12,9 +12,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { StudentFilterToolbar } from "@/components/admin/StudentFilterToolbar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { studentFilterSchema, type StudentFilter } from "@/lib/schemas/student"
-import { listStudents, getStudentKanban, getStudentSources } from "@/lib/api/students"
+import { listStudents, getStudentKanban, getStudentSources, getStudentFacets } from "@/lib/api/students"
 import { requirePermission } from "@/server/auth/session"
-import { can } from "@/lib/auth/permissions"
+import { can, isAdmin } from "@/lib/auth/permissions"
 import { paginationRange } from "@/lib/pagination"
 import { studentExportHref, studentListHref } from "@/lib/student-filter-url"
 
@@ -46,12 +46,18 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
     followUp: params.followUp,
     sort: params.sort,
     dir: params.dir,
+    archived: params.archived,
+    quickView: params.quickView,
   })
   const user = await requirePermission("students.view")
   if (!parsed.success || Object.values(params).some(Array.isArray)) {
     return <main className="content grid justify-items-start gap-4 py-8"><h1 className="text-[28px] font-light">Bộ lọc chưa hợp lệ</h1><p role="alert" className="text-muted-foreground">Bạn kiểm tra từ khóa, tháng đăng ký và bộ lọc trong đường dẫn, hoặc chọn lại bộ lọc.</p><Button asChild variant="outline"><Link href="/quan-tri/hoc-vien">Chọn lại bộ lọc</Link></Button></main>
   }
   const filter: StudentFilter = parsed.data
+  if (filter.archived && !isAdmin(user)) return <main className="content py-8"><p role="alert">Chỉ quản trị viên được xem danh sách lưu trữ.</p></main>
+  if (!isAdmin(user) && !Object.keys(params).some(key => ["search", "status", "sourceId", "month", "followUp", "archived", "quickView"].includes(key))) {
+    redirect(studentListHref(filter, { followUp: "due", sort: "nextActionAt", dir: "asc" }, { view: first(params.view) === "kanban" ? "kanban" : "table" }))
+  }
   const editable = can(user, "students.edit")
   const canExport = can(user, "students.export")
   const kanban = first(params.view) === "kanban"
@@ -64,18 +70,18 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
   )
 
   if (kanban) {
-    const [{ columns }, sources] = await Promise.all([getStudentKanban(filter), getStudentSources()])
+    const [{ columns }, sources, facets] = await Promise.all([getStudentKanban(filter), getStudentSources(), getStudentFacets(filter)])
     return (
-      <main className="content py-8 sm:py-10">
+      <main className="content py-8 sm:py-10 [&_button]:min-h-11 [&_a[data-slot=button]]:min-h-11">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="font-mono text-xs text-muted-foreground">QUẢN LÝ · HỌC VIÊN</p>
             <h1 className="mt-2 font-heading text-[28px] font-light text-foreground">Bảng trạng thái</h1>
-            <p className="mt-1 max-w-prose text-sm text-muted-foreground">Kéo thẻ hoặc dùng nút chuyển để cập nhật trạng thái tư vấn.</p>
+            <p className="mt-1 max-w-prose text-sm text-muted-foreground">Kéo thẻ trên máy tính hoặc chọn trạng thái để đổi phân loại. Vào hồ sơ để mở học thử hoặc ghi danh.</p>
           </div>
           {actions(sources)}
         </div>
-        <StudentFilterToolbar filter={filter} sources={sources} view="kanban" />
+        <StudentFilterToolbar filter={filter} sources={sources} view="kanban" admin={isAdmin(user)} {...facets} />
         <div className="mt-5">
           <KanbanBoard columns={columns} editable={editable} />
         </div>
@@ -89,7 +95,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
   const filtered = Boolean(filter.search || filter.status || filter.sourceId || filter.month || filter.followUp)
 
   return (
-    <main className="content py-8 sm:py-10">
+    <main className="content py-8 sm:py-10 [&_button]:min-h-11 [&_a[data-slot=button]]:min-h-11">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-xs text-muted-foreground">QUẢN LÝ · HỌC VIÊN</p>
@@ -99,7 +105,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
         {actions(result.sources)}
       </div>
 
-      <StudentFilterToolbar filter={filter} sources={result.sources} />
+      <StudentFilterToolbar filter={filter} sources={result.sources} admin={isAdmin(user)} counts={result.counts} dueCount={result.dueCount} />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
         <p aria-live="polite">{result.total === 0 ? "Không có học viên nào" : `Đang hiển thị ${start}–${end} trong tổng số ${result.total} học viên`}</p>
@@ -107,7 +113,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
 
       {result.rows.length ? (
         <div className="mt-3">
-          <StudentTable rows={result.rows} editable={editable} canExport={canExport} filter={filter} />
+          <StudentTable key={JSON.stringify(filter)} rows={result.rows} editable={editable && !filter.archived} canExport={canExport} filter={filter} total={result.total} />
           <nav aria-label="Phân trang danh sách học viên" className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm text-muted-foreground">Trang {result.page} / {pageCount}</span>
             <div className="flex gap-2">
