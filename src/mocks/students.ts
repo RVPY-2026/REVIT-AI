@@ -40,7 +40,7 @@ const rows: StudentDetail[] = seeds.map(([n, code, fullName, phone, status, sour
   id: `mock-student-${n}`, code, fullName, phone, status,
   email: `${code.toLowerCase()}@example.com`,
   sourceId: sourceById[source].id, sourceCode: sourceById[source].code, sourceName: sourceById[source].name,
-  signedUpAt: typeof signed === "string" ? signed : ago(signed), lastContactAt: contact === null ? null : ago(contact, 9),
+  signedUpAt: typeof signed === "string" ? signed : ago(signed), lastContactAt: n === 2 ? new Date(Date.now() - 5 * 60_000).toISOString() : contact === null ? null : ago(contact, 9),
   occupation: occupations[n % 2], birthYear: 1990 + (n % 12), specialty: specialties[n % 3], hometown: "Hà Nội",
   organization: "Studio Mẫu", zaloName: null, signupAnswers: (n === 1 ? { heardAbout: "TikTok", experience: "3 năm" } : {}) as Record<string, string>,
   timeline: [], notes: [],
@@ -53,8 +53,8 @@ const rows: StudentDetail[] = seeds.map(([n, code, fullName, phone, status, sour
 rows.push({ ...rows[0], id: "mock-student-13", code: "R2610004", sourceId: sources[2].id, sourceCode: "R", sourceName: "RVPY",
   fullName: "Hồ sơ thử đã lưu trữ", phone: "0900000013", archivedAt: ago(1), archiveReason: "test" });
 for (const row of rows) {
-  if (row.lastContactAt) row.notes = [{ id: `mock-note-${row.id}`, body: "Đã trao đổi về lộ trình học Revit.", authorName: "Nhân viên mẫu", createdAt: row.lastContactAt,
-    channel: row.id === "mock-student-5" ? "zalo" : "call", outcome: "thinking", nextActionAt: row.nextActionAt ?? null, editedAt: row.id === "mock-student-5" ? new Date(Date.parse(row.lastContactAt) + 5 * 60_000).toISOString() : null, canEdit: false }];
+  if (row.lastContactAt) row.notes = [{ id: `mock-note-${row.id}`, body: "Đã trao đổi về lộ trình học Revit.", authorName: row.id === "mock-student-2" ? "Quản trị (mock)" : "Nhân viên mẫu", createdAt: row.lastContactAt,
+    channel: row.id === "mock-student-5" ? "zalo" : "call", outcome: "thinking", nextActionAt: row.nextActionAt ?? null, editedAt: row.id === "mock-student-5" ? new Date(Date.parse(row.lastContactAt) + 5 * 60_000).toISOString() : null, canEdit: row.id === "mock-student-2" }];
   if (row.status === "dropped") row.timeline = [{ id: `mock-event-${row.id}`, fromStatus: "consulting", toStatus: "dropped", note: row.droppedNote ?? null, reason: row.droppedReason, kind: "status", createdAt: ago(8) }];
 }
 

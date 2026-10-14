@@ -36,6 +36,7 @@ export function KanbanBoard({ columns, editable }: { columns: KanbanColumnData[]
 
   async function move(intent: MoveIntent, reason?: typeof DROPPED_REASONS[number], note?: string, undo = false) {
     if (pending) return
+    if (USE_MOCK) { toast.error("Chế độ xem thử chưa lưu thay đổi học viên."); setDragged(null); return }
     setPending(true)
     try {
       const result = await updateStudentStatus({ studentId: intent.student.id, status: intent.status, expectedStatus: intent.student.status, reason, note })

@@ -39,13 +39,14 @@ Mock preview used port 3104 and `.next-crm-hardening-check`. Inspected list/all/
 
 The duplicate create warning appeared in all three sizes/both themes. Sales showed their own linked profile and the generic foreign-source warning without the foreign name. Sales default due and explicit all URLs, admin archive filter/restore dialog, select-all matching results, page-size/month controls, contact scheduling chips, and trial-without-plan badges were inspected. Bulk dropdown offers only consulting/dropped; the dropped dialog was exercised through keyboard navigation at 375, including light/dark and 44 px controls. Note quick chips consistently produced 15/10/2026 10:00 Vietnam time. Source-transfer reason dialogs fit all three sizes/both themes. Desktop grips appeared and touch grips were hidden. Final preview navigation had no console errors or the earlier clock-prerender warning.
 
-Browser writes stay disabled in mock mode; successful save/conflict behavior is verified by isolated DB tests, not a hosted staff session. Native Safari was not available: its month input was replaced with shared accessible menus, tested in Chrome. Hosted Supabase/Postgres migration application, hosted authentication, real concurrent-client load and actual Zalo delivery were not tested. No production performance numbers are claimed. Phone grouping and accent-insensitive substring search can require scans on large datasets; reviewers should evaluate indexing with representative production volume. Review deployment ordering: 0004 is required before deploying code that selects its new columns. The migration intentionally does not backfill historical dropped reasons.
+Mock fixtures include an author-owned note younger than 15 minutes so its body-correction form can be inspected; saving stays disabled. Preview Kanban drag retains the existing unavailable message. Browser writes stay disabled in mock mode; successful save/conflict behavior is verified by isolated DB tests, not a hosted staff session. Native Safari was not available: its month input was replaced with shared accessible menus, tested in Chrome. Hosted Supabase/Postgres migration application, hosted authentication, real concurrent-client load and actual Zalo delivery were not tested. No production performance numbers are claimed. Phone grouping and accent-insensitive substring search can require scans on large datasets; reviewers should evaluate indexing with representative production volume. Review deployment ordering: 0004 is required before deploying code that selects its new columns. The migration intentionally does not backfill historical dropped reasons.
 
 ## Local commits
 
 - `686962e` — Harden CRM permissions, records and scoped queries.
 - `bd13526` — Add CRM triage controls and responsive profile workflows.
-- Documentation/report commit — Document CRM hardening decisions and verification.
+- `53e0dab` — Document CRM hardening decisions and verification.
+- Preview correction commit — Keep note editing and Kanban feedback consistent in mock mode.
 
 The branch starts at `main` (`f9eb1d7`); main was not committed to. No commits were pushed. Only the pre-existing `.claude/launch.json` edit remains outside this task's commits.
 
