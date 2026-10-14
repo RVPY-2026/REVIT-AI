@@ -211,6 +211,17 @@ test("learning management, snapshots and student visibility on isolated Postgres
       assert.equal((await actions.bulkConfirmLearning({ studentId: students[1].id, lessons: batch })).ok, true);
       assert.equal((await actions.bulkConfirmLearning({ studentId: students[1].id, lessons: Array.from({ length: 31 }, () => batch[0]) })).ok, false);
     });
+    await t.test("orphan cleanup advances past cancelled reservations instead of repeatedly scanning the same 30", async () => {
+      const actions = await loadServerModule<typeof import("../src/server/actions/learning-content")>("src/server/actions/learning-content.ts", { ...actionDependencies, "@/lib/runtime-mode": { USE_MOCK: false } });
+      await conn.insert(schema.learningUploads).values(Array.from({ length: 31 }, () => ({ actorId: admin.id, filename: "cancelled.pdf", objectPath: contentRules.resourceObjectPath("cancelled.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "cancelled", expiresAt: new Date(0) })));
+      const [expired] = await conn.insert(schema.learningUploads).values({ actorId: admin.id, filename: "orphan.pdf", objectPath: contentRules.resourceObjectPath("orphan.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "uploaded", expiresAt: new Date(0) }).returning();
+      const input = { filename: "new.pdf", contentType: "application/pdf", size: 1, mode: "view" };
+      assert.equal((await actions.prepareResourceUpload(input)).ok, true);
+      assert.equal((await conn.select().from(schema.learningUploads).where(orm.eq(schema.learningUploads.id, expired.id)))[0].status, "cancelled");
+      const count = (await conn.select().from(schema.auditLog).where(orm.eq(schema.auditLog.entityId, expired.id))).length;
+      assert.equal((await actions.prepareResourceUpload(input)).ok, true);
+      assert.equal((await conn.select().from(schema.auditLog).where(orm.eq(schema.auditLog.entityId, expired.id))).length, count);
+    });
     await t.test("all new mutations return the preview error without writing in mock mode", async () => {
       const actions = await loadServerModule<typeof import("../src/server/actions/learning-content")>("src/server/actions/learning-content.ts", { ...actionDependencies, "@/lib/runtime-mode": { USE_MOCK: true } });
       const before = (await conn.select().from(schema.auditLog)).length;

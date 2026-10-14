@@ -57,7 +57,7 @@ export async function prepareResourceUpload(input: unknown): Promise<ActionResul
   if (!USE_MOCK) {
     try { await ensureLearningBucket(); } catch { return { ok: false, error: "Chưa mở được nơi lưu tệp. Bạn kiểm tra cấu hình lưu trữ nhé." }; }
     const expired = await db.select({ id: learningUploads.id, path: learningUploads.objectPath }).from(learningUploads)
-      .where(and(lt(learningUploads.expiresAt, new Date()), ne(learningUploads.status, "consumed"))).limit(30);
+      .where(and(lt(learningUploads.expiresAt, new Date()), ne(learningUploads.status, "consumed"), ne(learningUploads.status, "cancelled"))).limit(30);
     for (const row of expired) await cancelResourceUpload({ id: row.id });
   }
   return mutate(uploadSchema, parsed.data, "resources.manage", async (tx, caller, data) => {
