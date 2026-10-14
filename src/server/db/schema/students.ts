@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { type AnyPgColumn, check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { studentStatusEnum } from "./enums";
+import { type AnyPgColumn, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { studentStatusEnum, archiveReasonEnum, droppedReasonEnum, contactChannelEnum, contactOutcomeEnum } from "./enums";
 import { adSources, users } from "./users";
 
 /** A lead from the sign-up form; the same row becomes the student once they enroll. */
@@ -34,6 +34,9 @@ export const students = pgTable(
     // Remaining sign-up form answers (how they heard about RVPY, experience…).
     signupAnswers: jsonb().$type<Record<string, string>>().notNull().default({}),
     status: studentStatusEnum().notNull().default("new"),
+    archivedAt: timestamp({ withTimezone: true }),
+    archiveReason: archiveReasonEnum(),
+    archivedById: uuid().references(() => users.id, { onDelete: "set null" }),
     referredById: uuid().references((): AnyPgColumn => students.id, { onDelete: "set null" }), // the referrer (§7 referral offer)
     userId: uuid().unique().references(() => users.id, { onDelete: "set null" }), // set when activated for sign-in
     signedUpAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
@@ -44,7 +47,9 @@ export const students = pgTable(
       .$onUpdate(() => new Date()),
   },
   (t) => [
-    unique().on(t.sourceId, t.codeMonth, t.seq),
+    // sourceId is current ownership, not the immutable source embedded in the code.
+    check("students_archive_state", sql`(${t.archivedAt} IS NULL AND ${t.archiveReason} IS NULL) OR (${t.archivedAt} IS NOT NULL AND ${t.archiveReason} IS NOT NULL)`),
+    index().on(t.archivedAt),
     check("students_code_format", sql`${t.code} ~ '^[A-Z][0-9]{2}(0[1-9]|1[0-2])[0-9]{3}$'`),
     check("students_month_format", sql`${t.codeMonth} ~ '^[0-9]{2}(0[1-9]|1[0-2])$'`),
     check("students_sequence_range", sql`${t.seq} BETWEEN 1 AND 999`),
@@ -68,10 +73,13 @@ export const studentStatusEvents = pgTable(
     fromStatus: studentStatusEnum(),
     toStatus: studentStatusEnum().notNull(),
     note: text(),
+    reason: droppedReasonEnum(),
+    kind: text({ enum: ["status", "archive", "restore", "source_transfer"] }).notNull().default("status"),
+    data: jsonb().$type<Record<string, string>>(),
     changedById: uuid().references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index().on(t.studentId)],
+  (t) => [index().on(t.studentId), check("student_events_kind", sql`${t.kind} IN ('status', 'archive', 'restore', 'source_transfer')`)],
 ).enableRLS();
 
 export const callNotes = pgTable(
@@ -82,6 +90,10 @@ export const callNotes = pgTable(
       .notNull()
       .references(() => students.id, { onDelete: "cascade" }),
     body: text().notNull(),
+    channel: contactChannelEnum().notNull().default("call"),
+    outcome: contactOutcomeEnum(),
+    nextActionAt: timestamp({ withTimezone: true }),
+    editedAt: timestamp({ withTimezone: true }),
     authorId: uuid().references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

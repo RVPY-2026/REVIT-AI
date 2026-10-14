@@ -12,6 +12,8 @@ export function studentFilterParams(filter: StudentFilter, { view }: Options = {
   if (filter.sourceId) params.set("sourceId", filter.sourceId);
   if (filter.month) params.set("month", filter.month);
   if (filter.followUp) params.set("followUp", filter.followUp);
+  if (filter.archived) params.set("archived", filter.archived);
+  if (filter.quickView) params.set("quickView", filter.quickView);
   const sort = filter.sort ?? "signedUpAt";
   const dir = filter.dir ?? DEFAULT_SORT_DIR[sort];
   if (sort !== "signedUpAt" || dir !== DEFAULT_SORT_DIR.signedUpAt) { params.set("sort", sort); params.set("dir", dir); }

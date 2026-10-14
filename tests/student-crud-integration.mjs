@@ -52,6 +52,9 @@ test("actual student Server Actions enforce scope, transact, audit, and stop in 
     await pg.exec(await readFile(new URL("../src/server/db/migrations/0000_init.sql", import.meta.url), "utf8"));
     await pg.exec(await readFile(new URL("../src/server/db/migrations/0001_public_user_role.sql", import.meta.url), "utf8"));
 
+    for (const migration of ["0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening"])
+      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
+
     const ids = (await pg.query(`
       INSERT INTO users(email,name) VALUES
         ('crud-admin@example.test','Test admin'),
@@ -79,6 +82,11 @@ test("actual student Server Actions enforce scope, transact, audit, and stop in 
       "@/lib/auth/permissions": permissionsModule,
       "@/server/db/schema": schemaModule,
     });
+    const phonesModule = await loadTsModule("src/server/phone-matches.ts", {
+      "drizzle-orm": drizzleModule, "@/lib/auth/permissions": permissionsModule,
+      "@/server/db/schema": schemaModule, "@/server/auth/scope": scopeModule,
+      "@/lib/phone": await import("../src/lib/phone.ts"), "@/lib/schemas/lead": await import("../src/lib/schemas/lead.ts"),
+    });
     const leadRecordModule = await loadTsModule("src/server/lead-record.ts", {
       "drizzle-orm": drizzleModule,
       "@/lib/student-code": studentCode,
@@ -99,6 +107,7 @@ test("actual student Server Actions enforce scope, transact, audit, and stop in 
       "@/server/audit": auditModule,
       "@/server/db": { db },
       "@/server/db/schema": schemaModule,
+      "@/server/phone-matches": phonesModule,
     };
 
     const createLeadAction = async (useMock = false) => loadTsModule("src/server/actions/leads.ts", {
@@ -247,7 +256,7 @@ test("actual student Server Actions enforce scope, transact, audit, and stop in 
     const enrollmentBefore = (await pg.query("SELECT * FROM enrollments WHERE student_id=$1", [saleAStudentId])).rows[0];
     const eventsBefore = Number((await pg.query("SELECT count(*) AS count FROM student_status_events WHERE student_id=$1", [saleAStudentId])).rows[0].count);
     for (const status of ["enrolled", "dropped", "trial", "consulting", "new"]) {
-      const result = await statusAction.updateStudentStatus({ studentId: saleAStudentId, status });
+      const result = await statusAction.updateStudentStatus({ studentId: saleAStudentId, status, ...(status === "dropped" ? { reason: "price" } : {}) });
       assert.equal(result.ok, true);
       assert.equal((await pg.query("SELECT status FROM students WHERE id=$1", [saleAStudentId])).rows[0].status, status);
     }

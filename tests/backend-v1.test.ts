@@ -62,11 +62,12 @@ test("trial references select 2/13/14 across the 25-lesson grouped curriculum", 
   assert.equal(FOUNDATION_LESSONS.reduce((sum, lesson) => sum + lesson.baseDays, 0), 50);
 });
 
-import { availabilitySchema, kanbanStageSchema } from "../src/lib/schemas/enrollment";
-test("kanban cannot directly activate trial or formal enrollment", () => {
+import { availabilitySchema } from "../src/lib/schemas/enrollment";
+import { updateStudentStatusSchema } from "../src/lib/schemas/student-status";
+test("kanban uses the manual classification schema for all five statuses", () => {
   const studentId = "00000000-0000-4000-8000-000000000001";
-  for (const status of ["trial", "enrolled"]) assert.equal(kanbanStageSchema.safeParse({ studentId, status }).success, false);
-  assert.equal(kanbanStageSchema.safeParse({ studentId, status: "consulting" }).success, true);
+  for (const status of ["new", "consulting", "trial", "enrolled"]) assert.equal(updateStudentStatusSchema.safeParse({ studentId, status }).success, true);
+  assert.equal(updateStudentStatusSchema.safeParse({ studentId, status: "dropped", reason: "time" }).success, true);
 });
 test("availability is unspecified or exactly seven days and ten boolean slots", () => {
   assert.equal(availabilitySchema.safeParse([]).success, true);

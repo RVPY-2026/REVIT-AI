@@ -11,6 +11,7 @@ export const updateStudentFieldSchema = z.object({
   value: z.string().max(4000),
   expectedValue: z.string().max(4000),
   answerKey: z.string().min(1).max(80).optional(),
+  duplicateAcknowledged: z.boolean().optional(),
 }).strict().superRefine((data, ctx) => {
   if ((data.field === "signupAnswer") !== Boolean(data.answerKey)) {
     ctx.addIssue({ code: "custom", path: ["value"], message: "Trường cập nhật chưa hợp lệ." });
@@ -41,6 +42,7 @@ export function normalizeStudentField(field: StudentFieldName, value: string): s
 
 export const updateStudentProfileSchema = z.object({
   studentId: z.uuid(),
+  duplicateAcknowledged: z.boolean().optional(),
   changes: z.array(z.object({
     field: z.enum(studentFieldNames),
     value: z.string().max(4000),
