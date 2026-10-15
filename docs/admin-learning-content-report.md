@@ -1,95 +1,99 @@
-# Admin learning content delivery report
+# Admin learning content review fixes
 
-## Scope and isolation
+## Checkout and merge
 
-- Branch: `feature/admin-learning-content`, based on `main` at `f9eb1d7`.
-- Working checkout: `D:/RVPY/worktrees/admin-learning-content`. The initial managed C: worktree was relocated with Git repair after the C: drive filled. The resulting checkout is a valid Git worktree but the desktop app declined to register the relocated path as a managed attachment.
-- The original `D:/RVPY/REVIT-AI` checkout and its uncommitted CRM changes were not edited. `CLAUDE.md` was not edited. The student-profile route has exactly one added, self-contained Suspense mount block.
-- No push, live migration, real database test, or real Storage mutation was performed.
+Worktree: `D:/RVPY/worktrees/admin-learning-content`; branch: `feature/admin-learning-content`, originally based on main `f9eb1d7`. CRM baseline `53dd948` is merged in local commit `07aab9e`. Its archive checks, permission additions, student-profile changes and migrations 0004/0005 are preserved. No push, live database migration, real Storage mutation or external message was performed. Changes to CLAUDE.md in this branch come solely from that CRM merge; this feature did not edit it.
 
-## Delivered behavior
+The feature's own history was rewritten non-interactively to remove every file under `design/reference/admin-learning-content/` from its commits. Local evidence was restored from an archive and is now gitignored. Other branches and the original dirty checkout were preserved. Old commit IDs from the initial handoff must not be used as the current feature tip.
 
-Admin resource management includes lesson groups, unassigned materials, title search, audience/lesson filters, file format icons, audience and active badges, known size, guarded reordering, create/edit dialogs, YouTube normalization and ID preview, opaque streaming uploads, progress/cancel/retry, replacement without changing resource IDs, activation Undo and named deletion confirmation. The private storage location never enters a client payload.
+## C-1: direct signed uploads
 
-Curriculum management includes phases, combined lesson numbers, durations, trial slots, active state, resource and plan counts, add/edit/deactivate/reorder, and a validated three-slot trial replacement. Existing plan snapshots are preserved. Both management lists export their filtered rows to Excel.
+`prepareResourceUpload` validates extension + MIME + mode + size on the server, authorizes `resources.manage`, generates an independent private path, creates an audited reservation and returns the official signed destination/token only to the admin uploader. The browser uses the official `uploadToSignedUrl` method. An XMLHttpRequest fetch adapter supplies progress and AbortController cancellation; retry uses a new reservation. The Next.js PUT proxy and byte-streaming helper are removed. Files never pass through the application request body.
 
-The student progress panel includes every plan lesson by phase, reports/notes/submission links, confirmations, dates, scoped staff actions and an atomic bulk confirmation capped at 30. Trial confirmation retains its original restriction through the shared helper. Withdrawal preserves reports. Undo uses server-returned timestamps.
+`completeResourceUpload` authorizes and locks the caller's pending reservation, then reads actual Storage metadata. Matching size/MIME changes it to uploaded. Mismatch/expiry cancels it, records audit in that transaction, and removes the object best-effort. Another admin cannot complete or cancel a caller's reservation. Resource save consumes the reservation once, preserving resource IDs during replacement. Students still receive no bucket or path and access files only through their existing authorized resource endpoint.
 
-A student-side access bug was fixed minimally in `src/server/queries/student-area.ts`: trial resource access now follows that student's plan snapshot after a template trial-slot change. No student-area UI changed.
+Bucket creation/update enforces privacy, a 50,000,000-byte file limit and the MIME allowlist. View uploads are capped at 25,000,000 bytes; downloads at 50,000,000 bytes. Larger installers are explicitly rejected in the Vietnamese form. External generic links are not offered because the existing origin CHECK permits only Storage or a YouTube embed.
 
-## Migration 0006
+Expired pending/uploaded/cancelled reservations are cleaned on the next authorized prepare and by the existing bearer-authenticated `/api/cron/zalo-outbox` worker. No scheduler was created. Cleanup marks successful rows cleaned with audit in the same transaction and leaves failed deletions retryable. Replaced/deleted consumed reservations are retired so objects recreated using a still-valid old signed capability are swept after expiry. Closing/cancelling also attempts immediate removal. Operational reservation rows remain for audit.
 
-`0006_admin_learning_content.sql` was generated with `pnpm db:generate --name admin_learning_content`, then assigned the reserved `0006` prefix with its matching snapshot and journal entry. The generated SQL is otherwise unchanged.
+### Official limits checked on 15 October 2026
 
-Exact SQL summary: creates `learning_uploads` with nine columns (`id`, `actor_id`, `filename`, `object_path`, `content_type`, `size`, `mode`, `status`, `expires_at`); UUID primary key defaults to `gen_random_uuid()`; `object_path` is unique; `actor_id` references `users.id` with no cascading deletion; size must be greater than zero and at most 104857600 bytes; mode must be view/download; status must be pending/uploaded/consumed/cancelled. RLS is enabled. No public policies, business-table changes, seed changes or real database application.
+- Vercel's exact documented Function request/response payload limit is **"4.5 MB"**. Larger bodies receive 413. Streaming through a Function does not make that ingress limit suitable for these files. [Vercel Functions limits](https://vercel.com/docs/functions/limitations#request-body-size).
+- Supabase Free's maximum global per-file setting is **"50 MB"**; a bucket limit cannot exceed the global limit. We use 50,000,000 bytes conservatively and do not alter the plan/global setting. A lower project setting still needs owner configuration. Direct Storage transfer bypasses the Vercel body limit. [Supabase file limits](https://supabase.com/docs/guides/storage/uploads/file-limits).
+- Signed upload capabilities last two hours. Creation disables upsert. [createSignedUploadUrl](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl), [uploadToSignedUrl](https://supabase.com/docs/reference/javascript/storage-from-uploadtosignedurl), [object info](https://supabase.com/docs/reference/javascript/storage-from-info), [bucket restrictions](https://supabase.com/docs/reference/javascript/storage-updatebucket). Installed SDK source and Context7 were also checked; the official method does not forward an AbortSignal, which is why the custom fetch adapter owns the XHR cancellation.
 
-## Decisions and reviewer risks
+## C-2: migration proof and dependencies
 
-- View/upload caps are 25/100 MiB. A matching extension and allowlisted MIME are both required. Unknown RVT/RFA MIME is `application/octet-stream`; the backend still requires those exact extensions and download mode.
-- Direct signed Storage upload URLs expose the bucket/path, conflicting with the brief's stricter no-path rule. Uploads therefore use an opaque same-origin streaming endpoint. Real hosting body/duration limits must support these sizes. Live Storage/CORS/platform behavior and large uploads have not been tested against a real project.
-- The private bucket is created on the first authorized real upload attempt if missing; a public bucket is rejected. No bucket was created during this work.
-- Pending/uploaded reservations expire after two hours and are reaped on the next authorized upload attempt. Cancelled rows do not monopolize the cleanup batch. There is no scheduled orphan-cleanup job. Storage deletion is best-effort and failures are surfaced, so an operator may need to remove an orphan manually.
-- The upload transaction holds a reservation row lock while streaming. Review hosting and database idle-transaction limits for slow uploads before production use.
-- Lessons have no hard-delete operation; deactivation is the only removal path. Trial lessons must be swapped before deactivation.
-- A template's phase is immutable during editing. New lessons may be added to either phase.
-- Lists use 20-row pagination; filtered export includes all matching rows. Reordering requires the full group's current order and is disabled while title sorting is active.
-- The optional DataTable card modes leave existing CRM defaults unchanged. New lists use cards below 1024px; the narrow progress panel uses cards at every width.
-- Migration metadata is based on `0003`; reconcile the `0006` snapshot with the other agents' reserved `0004`/`0005` snapshots when combining branches. The SQL itself only creates the upload-reservation table.
-- Test files run serially because concurrent PGlite/TypeScript processes exhausted this machine's memory. Existing tests were neither removed nor newly skipped.
-- Screenshots use mock data. Save/upload/delete/reorder/confirm controls intentionally remain disabled in preview; their record/action behavior is verified with isolated Postgres and explicit provider boundaries, not a live browser-to-Supabase flow.
-- Deliberately failing mock queries trigger the real error segments. Some error screenshots include Next.js's development-only issue indicator; it is not application UI.
+After merging CRM 0004/0005, 0006 was regenerated with `pnpm db:generate --name admin_learning_content`. No snapshot content or predecessor IDs were manually edited. The resulting journal ends 0004, 0005, 0006. `0006.prevId` equals the actual `0005.id`; the complete generated schema includes `students.archived_at`. The metadata regression test asserts both facts.
 
-## Visual and keyboard verification
+Final SQL `0006_admin_learning_content.sql` creates only `learning_uploads`: nine columns (id, actor_id, filename, object_path, content_type, size, mode, status, expires_at), UUID primary key with `gen_random_uuid()`, unique object_path, actor FK to users without cascading deletion; size >0 and <=50000000; mode view/download; status pending/uploaded/consumed/cancelled/cleaned. It enables RLS and creates no public policies. Existing business tables are unchanged by 0006.
 
-The browser check used isolated Chrome and a mock server on port 3106 with `RVPY_TEST_DIST_DIR=.next-learning`. `/ui-kit`, student list, permissions and import pages were browsed as references. Background route prefetching was blocked in the screenshot harness to prevent unrelated pages consuming the constrained machine's resources. Native compiler threads were limited for the successful run.
+`pnpm db:generate --name verify_learning_metadata` reports **No schema changes, nothing to migrate**. The isolated learning Postgres test applies fresh SQL 0000 through 0006, including CRM 0004 and 0005, and checks RLS/no policies. The server-module test explicitly defines the `@/server/zalo/outbox` boundary; no real provider is reachable implicitly.
 
-The two new pages have screenshots at 375, 768 and 1280px in light and dark for loading, empty, populated, error, one row, 120 rows with long titles, create dialog and inline validation. The progress panel has populated and bulk-dialog screenshots for each width/theme. A sale permission-denial screenshot is included. Browser checks assert that no tested page has horizontal overflow.
+**Pending integration dependency:** migrations 0007 (B) and 0008 (A) are not on this branch. Their owners must consume this final 0006 snapshot and generate their own real successor metadata in that order. No placeholders or fabricated predecessor snapshots were added. This branch is ready for that dependency handoff; it does not claim the future 0004–0008 chain has been verified.
 
-Keyboard checks cover opening create and trial-swap dialogs with Enter, moving focus with Tab, blur validation, closing with Escape, and opening/closing the bulk confirmation dialog. An additional walkthrough verified YouTube and audience selection, mobile filters, row edit dialogs, trial selection and preserving 4/5 in the combined-lesson editor. The mock filtered Excel endpoint was also exercised over HTTP. Preview confirmation is disabled. Visual review fixed a missing semantic progress heading, native English file-picker text, small close-button targets, excessive mobile form grid spacing and clipped table actions at tablet/profile widths. Confirmation/save behavior requiring a real connection was not exercised in the browser.
+## C-3 and C-4: scope and shared UI
 
-The screenshot manifest, exact file inventory, test totals and commit identifiers follow below.
+The learning Excel endpoint, toolbar button, its test and old documentation claims were removed as requested. Other lists' exports are unchanged.
 
-## Checks and test totals
+LearningPrimaryButton was deleted. All new screens use the existing Button. LearningSelect uses the normal Button/DropdownMenu styling without shadow overrides; its label, truncation and accessible menu behavior remain. All inline learning badge colors and data-learning attributes were removed. StatusBadge now has a discriminated union: the existing default student context takes only StudentStatus, while `context="learning"` takes only learning statuses. This prevents active/inactive collisions with other admin domains.
 
-- `pnpm typecheck`: passed.
-- `pnpm lint`: passed with no errors or warnings.
-- `pnpm test`: 89 passed, 0 failed, 3 skipped; 92 total. Baseline was 69 passed, 3 skipped. Added 20 passing checks including nested isolated-Postgres cases. All original tests and their opt-in live-DB flags remain intact.
-- `git diff --check`: passed.
-- Browser: 111 PNG screenshots, plus 12 review contact sheets. Full matrix has 98 recorded checks; the progress-label follow-up has 13. All recorded page-overflow checks are false.
-- Isolated coverage: permissions; MIME/extension/size allowlists; actual stream byte counting and private-bucket rejection; sanitized server paths; YouTube normalization/rejection; RLS/no policies; safe/stale reordering; exactly-three trial swaps; referenced-template deactivation and snapshot preservation; resource audience/active rules; resource replacement and single-use upload reservations; source-scoped formal confirmation; trial restriction; stale progress; report-preserving withdrawal; student progress summaries; audit rollback; atomic/capped bulk confirmation; preview rejection; cleanup batches advancing past cancelled rows; and filtered Excel export with permission enforcement.
-- Live provider calls, live PostgreSQL checks, deployment and browser mutation saves were not run. The three live-DB tests stayed skipped by their existing opt-in flags.
+Shared globals.css tokens now provide accessible primary-button gradient endpoints (#a3124f to #c2185b) in both normal themes, while preserving the brighter dark link/focus accent. Light success/warning text tokens are darkened (#187347 and #935700). FRONTEND_RULES section 3 and the UI kit document/show those changes. There are no feature-specific color overrides. The token regression checks both gradient endpoints and status text against card backgrounds in both themes. Browser measurements across 60 populated state/theme cases had a minimum **4.879:1**, including the shared badges and primary controls.
 
+DataTable's four feature switches are replaced by the small documented `presentation` enum (responsive/wide/cards) and accessible `label`. The default preserves CRM's md table breakpoint and unrestricted table height. Wide learning lists use cards below lg and a keyboard-focusable scrolling table with sticky header above lg. The progress panel uses cards. Student-list regression screenshots confirm cards at 375 and tables at 768/1280 in both themes without page overflow.
 
-## Final review decisions
+The requested ManagementPageHeader, ManagementEmpty, ManagementLoading, ViewerFilters and ViewerPagination are absent from the merged baseline. No copies were invented. The learning screens retain the student-list header anatomy and existing primitives. Reuse of B's components remains dependent on their actual integration.
 
-- Private bucket configuration and path generation are server-only. Upload reservation IDs and private path UUIDs are independent. The browser run scanned 2594 delivered client-script responses and found no private bucket identifier.
-- Learning primary actions use the existing deep accent token; learning status text uses the existing foreground token with semantic colored outlines. This avoids changing global tokens or legacy CRM rendering while meeting AA. Computed foreground/background contrast was checked in both themes; the lowest observed ratio for the new enabled actions and status labels was 5.87:1. A token-level regression test also enforces 4.5:1.
-- Selecting a replacement file cannot silently save the old file: the editor requires the selected file to finish uploading before saving.
-- Automated CLS/Lighthouse profiling was not performed. Screenshot comparisons, viewport overflow checks, computed contrast checks and keyboard interactions are the recorded UI evidence.
-- Long desktop tables passed eight sticky-header scroll checks. These table regions are keyboard focusable.
+StudentLearningProgress uses a static import and one self-contained Suspense mount, guarded for archived profiles. Compared with 53dd948, that route changes only the import and mount block. Learning managers/dialogs are formatted into readable statements; upload orchestration lives in a small dedicated hook with unmount cancellation. All business behavior and snapshot/trial rules remain intact.
 
-## Local implementation commits
+## Verification
 
-- c37b573 Add audited learning content records, uploads and formal confirmations
-- 1ecd4fb Keep orphan cleanup advancing beyond cancelled uploads
-- 0bcbfc3 Add Vietnamese learning management pages and student progress controls
-- 1e76748 Fix client boundary for the learning UI kit showcase
-- d06caad Keep upload paths private and add accessible learning color tokens
-- 7b90cf5 Meet learning control contrast and prevent unsent file replacements
-- d940d4f Keep long learning table headers visible while scrolling
+Final command counts, history proof and exact file/screenshot inventories are appended below after the final run. No live database/provider flags were enabled. The only UI mutations exercised in browser are local mock form/filter/dialog interactions; server saves remain disabled in preview. Save, permission, scope, lock, audit, stale-write, snapshot and upload metadata behavior are exercised with isolated Postgres and explicit provider boundaries. Real Storage/CORS behavior, a deployed 50 MB transfer, project-global limits and production worker operation remain unverified. CLS/Lighthouse were not run.
 
-The final documentation/evidence commit follows these implementation commits in Git history.
+The mock server ran on port 3106 with `RVPY_TEST_DIST_DIR=.next-learning`. Two pages were checked at 375/768/1280 in light/dark with loading, empty, populated, one row, 120 long rows, error, create dialog and validation states. Progress/bulk confirmation, sale denial, UI kit examples, replacement validation and the CRM student list are also captured. All new management layouts were reviewed using 12 refreshed contact sheets. Intentional mock query errors may display Next.js's development issue indicator. A development hydration warning involving modal aria-hidden attributes appeared during rapid automated profile navigation; no broken keyboard or overflow assertion resulted, and no live/deployment conclusion is drawn from it.
 
-## File inventory
+Keyboard: Tab/Enter/menu arrows/Escape for source/audience selection, YouTube ID preview, mobile filters, row editing, trial swaps and combined 4/5 lessons; bulk dialog Enter/Escape is part of the visual harness. Forced mock submit proves an unuploaded replacement is blocked inline, retains the draft and focuses the picker without a mutation request. The real SDK plus fake XHR transport verifies direct Storage URL/method, progress, abort and retry without a live request.
+
+## Final recorded results
+
+- Code commit: `ab8d819`; CRM merge: `07aab9e`. The following documentation/evidence-script commit is listed in Git history.
+- `pnpm typecheck` passed. `pnpm lint` passed with no errors or warnings (the unused test parameter warning was fixed).
+- `pnpm test`: 134 total, **131 passed, 0 failed, 3 unchanged opt-in skips**. This feature's test file contributes 24 passing checks including nested Postgres cases; the merged CRM baseline accounts for the remaining increase over the original 69-pass baseline.
+- Coverage includes real SDK direct upload/progress/abort/retry using a fake XHR boundary, bucket restrictions/privacy, reservation validation/ownership/expiry, metadata mismatch deletion, cleanup/worker authorization, migration predecessors/fresh application, resource audience/access, safe reordering, exact trial count, snapshot isolation, scope, stale protection, rollback audit, bulk confirmation and preview errors.
+- Full new-page matrix: 97 checks, zero page-overflow failures; 60 contrast measurement cases, lowest ratio 4.879:1. Every recorded sticky-header assertion passed. Keyboard harness: five detailed checks passed. Student-list regression: six width/theme checks passed, preserving the existing md breakpoint.
+- Screenshot evidence: **117 PNGs**, all gitignored, plus 12 refreshed review sheets. The manifest below lists every PNG. Older progress-follow-up JSON is retained locally as prior-run evidence; the current matrix is `checks.json`.
+- `pnpm db:generate --name verify_learning_metadata`: no schema changes, nothing to migrate. Fresh PGlite application of SQL 0000–0006 passed in the learning suite. Live DB tests stayed off.
+- `git diff --check` passed. `git rev-list --objects main..HEAD` piped to `git cat-file --batch-check` found **zero image blobs**, therefore zero images over 500,000 bytes. No screenshot from an older feature commit remains reachable in the current branch range.
+
+## Shared object-store observation
+
+```text
+warning: garbage found: D:/RVPY/REVIT-AI/.git/worktrees/REVIT-AI/refs
+warning: garbage found: D:/RVPY/REVIT-AI/.git/objects/5c/tmp_obj_AFxt2l
+warning: garbage found: D:/RVPY/REVIT-AI/.git/objects/c4/tmp_obj_b0Rhql
+count: 4137
+size: 269.53 MiB
+in-pack: 0
+packs: 0
+size-pack: 0 bytes
+prune-packable: 0
+garbage: 3
+size-garbage: 4.35 MiB
+```
+
+This is the shared repository object store, including other branches, backup refs and reflogs. Its size is not this branch's payload. The existing garbage warnings were recorded; no shared garbage collection or other-branch history rewrite was attempted. Current-range image proof is separate and zero. Local screenshots remain available on disk.
+
+## Feature file inventory relative to CRM 53dd948
 
 - `.gitignore`
 - `docs/admin-learning-content-report.md`
 - `docs/admin-learning-content.md`
 - `docs/student-area.md`
 - `eslint.config.mjs`
+- `FRONTEND_RULES.md`
 - `next.config.ts`
-- `package.json`
 - `scripts/learning-content-keyboard-check.mjs`
+- `scripts/learning-content-regression-check.mjs`
 - `scripts/learning-content-visual-check.mjs`
 - `src/app/(admin)/quan-tri/chuong-trinh/error.tsx`
 - `src/app/(admin)/quan-tri/chuong-trinh/loading.tsx`
@@ -98,8 +102,8 @@ The final documentation/evidence commit follows these implementation commits in 
 - `src/app/(admin)/quan-tri/tai-lieu/error.tsx`
 - `src/app/(admin)/quan-tri/tai-lieu/loading.tsx`
 - `src/app/(admin)/quan-tri/tai-lieu/page.tsx`
-- `src/app/api/admin/learning-uploads/[id]/route.ts`
-- `src/app/api/export/learning-content/route.ts`
+- `src/app/api/cron/zalo-outbox/route.ts`
+- `src/app/globals.css`
 - `src/app/ui-kit/page.tsx`
 - `src/components/admin/DataTable.tsx`
 - `src/components/admin/LearningContentError.tsx`
@@ -107,17 +111,18 @@ The final documentation/evidence commit follows these implementation commits in 
 - `src/components/admin/LearningContentManager.tsx`
 - `src/components/admin/LearningContentShowcase.tsx`
 - `src/components/admin/LearningLessonDialog.tsx`
-- `src/components/admin/LearningPrimaryButton.tsx`
 - `src/components/admin/LearningResourceDialog.tsx`
 - `src/components/admin/LearningSelect.tsx`
 - `src/components/admin/LearningTrialDialog.tsx`
 - `src/components/admin/StatusBadge.tsx`
 - `src/components/admin/StudentLearningProgress.tsx`
 - `src/components/admin/StudentLearningProgressPanel.tsx`
+- `src/components/admin/useLearningResourceUpload.ts`
 - `src/components/layout/ManagementShell.tsx`
 - `src/lib/api/learning-content.ts`
 - `src/lib/auth/permissions.ts`
 - `src/lib/learning-content.ts`
+- `src/lib/learning-upload.ts`
 - `src/lib/schemas/learning-content.ts`
 - `src/mocks/learning-content.ts`
 - `src/server/actions/learning-content.ts`
@@ -128,6 +133,7 @@ The final documentation/evidence commit follows these implementation commits in 
 - `src/server/db/schema/learning-uploads.ts`
 - `src/server/learning-content-record.ts`
 - `src/server/learning-storage.ts`
+- `src/server/learning-upload-cleanup.ts`
 - `src/server/learning-upload-config.ts`
 - `src/server/queries/learning-content.ts`
 - `src/server/queries/student-area.ts`
@@ -136,11 +142,12 @@ The final documentation/evidence commit follows these implementation commits in 
 - `tests/helpers/server-module.ts`
 - `tsconfig.json`
 
-## Screenshot and evidence manifest
+The CRM merge's own files and verification are documented in `docs/crm-hardening-report.md`.
 
-All paths below are relative to `design/reference/admin-learning-content/`. Review sheets combine the eight management-page states for one viewport/theme. The three JSON files record browser, follow-up, and keyboard assertions. The logs contain the final command results.
+## Local screenshot manifest
 
-- `checks.json`
+All names below are relative to the gitignored `design/reference/admin-learning-content/` directory.
+
 - `curriculum-1280-dark-dialog.png`
 - `curriculum-1280-dark-empty.png`
 - `curriculum-1280-dark-error.png`
@@ -189,8 +196,6 @@ All paths below are relative to `design/reference/admin-learning-content/`. Revi
 - `curriculum-768-light-one.png`
 - `curriculum-768-light-populated.png`
 - `curriculum-768-light-validation.png`
-- `keyboard-checks.json`
-- `lint.log`
 - `progress-1280-dark-dialog.png`
 - `progress-1280-dark-populated.png`
 - `progress-1280-light-dialog.png`
@@ -203,7 +208,6 @@ All paths below are relative to `design/reference/admin-learning-content/`. Revi
 - `progress-768-dark-populated.png`
 - `progress-768-light-dialog.png`
 - `progress-768-light-populated.png`
-- `progress-followup-checks.json`
 - `resources-1280-dark-dialog.png`
 - `resources-1280-dark-empty.png`
 - `resources-1280-dark-error.png`
@@ -254,18 +258,12 @@ All paths below are relative to `design/reference/admin-learning-content/`. Revi
 - `resources-768-light-validation.png`
 - `resources-replacement-validation.png`
 - `resources-sale-no-permission.png`
-- `review-curriculum-1280-dark.jpg`
-- `review-curriculum-1280-light.jpg`
-- `review-curriculum-375-dark.jpg`
-- `review-curriculum-375-light.jpg`
-- `review-curriculum-768-dark.jpg`
-- `review-curriculum-768-light.jpg`
-- `review-resources-1280-dark.jpg`
-- `review-resources-1280-light.jpg`
-- `review-resources-375-dark.jpg`
-- `review-resources-375-light.jpg`
-- `review-resources-768-dark.jpg`
-- `review-resources-768-light.jpg`
-- `tests.log`
-- `typecheck.log`
+- `students-1280-dark-regression.png`
+- `students-1280-light-regression.png`
+- `students-375-dark-regression.png`
+- `students-375-light-regression.png`
+- `students-768-dark-regression.png`
+- `students-768-light-regression.png`
 - `ui-kit-shared-states.png`
+
+Local supporting evidence: `checks.json`, `keyboard-checks.json`, `students-regression-checks.json`, `review-*-{light,dark}.jpg`, `typecheck.log`, `lint.log`, `tests.log`, `migration-generation-proof.log`, `history-proof.json` and `object-count.log`.

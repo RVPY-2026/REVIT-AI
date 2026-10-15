@@ -4,17 +4,21 @@ The admin-only **Tài liệu** and **Chương trình học** pages manage the ex
 
 ## Uploads
 
-- View mode: PDF, PNG, JPG/JPEG and WebP, up to 25 MiB.
-- Download mode: the view formats plus EXE, MSI, ZIP, RVT and RFA, up to 100 MiB.
-- Extension and MIME must match the server allowlist in `src/lib/learning-content.ts`. Empty files, oversized files and double extensions that do not match the MIME are rejected.
-- An authorized admin receives an opaque reservation ID. The server generates `resources/<uuid>/<sanitized-basename>` with an independent private UUID and ignores client paths. Bucket configuration and path generation live in a server-only module. The reservation belongs to that admin and expires after two hours. The server creates `learning-resources` as a private bucket if absent and rejects a public bucket.
-- The same-origin PUT endpoint streams bytes into Storage, counts them against the authorized size, and checks stored size and MIME before marking the reservation uploaded. Paths and bucket names never appear in action results or list payloads; the admin list receives only the basename and known size.
-- A file is not published until a resource save consumes the uploaded reservation in its audited transaction. Upload progress, cancellation and retry are available. Closing the dialog cancels its unused reservation. Failed uploads remove their object best-effort; expired pending/uploaded reservations are reaped on the next authorized upload attempt. Cancelled reservations are excluded so they do not block later cleanup batches. Failed Storage cleanup may require manual removal. There is no scheduled cleanup job.
-- Replacing an object preserves the resource ID. The old object is removed only after the DB transaction commits. Failed cleanup is reported to the admin; business data stays committed.
+- View mode: PDF, PNG, JPG/JPEG and WebP, up to 25,000,000 bytes (25 MB).
+- Download mode: those formats plus EXE, MSI, ZIP, RVT and RFA, up to 50,000,000 bytes (50 MB). Larger installers are rejected and explained in the form. There is no external-file-link option: the existing origin CHECK only permits a Storage object or a validated YouTube embed.
+- Extension, MIME, mode and size are validated server-side using `src/lib/learning-content.ts`. Empty files and mismatched formats are rejected. RVT/RFA use `application/octet-stream` with the exact allowlisted extension.
+- `prepareResourceUpload` authorizes the admin, generates `resources/<uuid>/<sanitized-basename>`, creates an audited two-hour reservation owned by that admin, and returns the official signed upload destination/token. Client paths are never accepted. Only the authorized admin uploader receives the destination; student payloads still omit bucket and path.
+- The private bucket is created if missing. Existing public buckets are rejected. Creation and updates enforce the 50,000,000-byte bucket limit and the complete MIME allowlist. A project with a lower global limit must be configured by its owner; this code never changes the project plan or global setting.
+- The browser calls the official `uploadToSignedUrl` API directly. A custom fetch adapter uses XMLHttpRequest for progress and cancellation. No file body passes through Next.js. Retry creates a new reservation/path. A selected replacement must finish uploading before saving.
+- `completeResourceUpload` locks the owned reservation and reads actual Storage object metadata. Only matching size/MIME marks it uploaded. Expired or mismatched reservations are cancelled and their objects removed best-effort. Another admin cannot complete or cancel the caller's lease. Storage failures preserve the draft and permit retry.
+- Saving consumes the uploaded reservation in the resource transaction and preserves the resource ID. Replaced/deleted objects are removed after commit; their old reservations are retired so a still-valid signed capability cannot leave a permanently untracked recreated object.
+- Closing/cancelling removes the temporary object best-effort. Expired pending, uploaded and cancelled reservations are swept on the next authorized prepare and by the existing authenticated `/api/cron/zalo-outbox` worker. No new scheduler is installed. Successful cleanup marks the operational reservation `cleaned` and writes audit in the same transaction; failed deletion remains retryable. Live Storage cleanup has not been exercised.
 
-### Upload transport decision
+### Verified platform limits
 
-Direct Supabase signed upload URLs include the bucket and object path. The brief forbids exposing them to the browser, so this implementation uses an opaque same-origin streaming endpoint instead. It does not buffer a 100 MiB file or use a Server Action request body. The hosting platform must support the chosen request size and duration. In particular, a deployment with a lower request-body cap needs an upload ingress that supports these sizes before using the advertised maximums. Live Storage transport has not been exercised against a real project.
+The official [Vercel Functions limits](https://vercel.com/docs/functions/limitations#request-body-size) state: "The maximum payload size for the request body or the response body of a Vercel Function is 4.5 MB."
+
+The official [Supabase file limits](https://supabase.com/docs/guides/storage/uploads/file-limits) state: "For Free projects, the limit can't exceed 50 MB." Direct Storage uploads bypass the Vercel request-body limit, while the application and bucket still enforce the conservative Free-compatible size above. Supabase documents [signed upload URLs](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl) as valid for two hours and supports [uploadToSignedUrl](https://supabase.com/docs/reference/javascript/storage-from-uploadtosignedurl). These pages were checked on 15 October 2026.
 
 ## Templates and ordering
 
@@ -36,4 +40,4 @@ Mock mode renders fake content and preserves the existing preview error for muta
 
 The local test command runs files serially to avoid simultaneous PGlite/TypeScript memory spikes. `RVPY_TEST_DIST_DIR=.next-learning` isolates the preview output.
 
-See `design/reference/admin-learning-content/` for screenshots and browser checks, and `docs/admin-learning-content-report.md` for the final verification report.
+See the gitignored local `design/reference/admin-learning-content/` for screenshots and browser checks, and `docs/admin-learning-content-report.md` for the final verification report.
