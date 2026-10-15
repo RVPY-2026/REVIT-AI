@@ -254,7 +254,7 @@ Single centered card with the Google sign-in button and an email field that send
 
 ## 5. Components and patterns
 
-- **Buttons:** `default` = gradient + shadow (one per view section), `outline` = 1px border, `ghost` for toolbar actions. Labels state the action.
+- **Buttons:** `default` = gradient + shadow (one per view section), `outline` = 1px border, `ghost` for toolbar actions. Labels state the action. CRM controls use `compact` / `icon-compact`: 44px on mobile/coarse pointers, 36px on desktop fine pointers. Set size on the component; never override all descendant buttons from a page.
 - **StatusBadge:** pill with 1px border in the status color, text in the same color, no fill. One mapping table in `lib/constants.ts`.
 - **IconTile:** Lucide icon inside a `primary-soft` tile (§3.4). App areas only; not used on marketing pages.
 - **DataTable:** sticky header; numeric columns right-aligned in mono; toolbar with search, filters and an **"Xuất Excel"** button that exports exactly the filtered rows (file name `rvpy-<list>-<yyyyMMdd>.xlsx`); row actions in a dropdown; becomes a **card list on mobile**.
