@@ -26,9 +26,9 @@ Replaces the per-student tracking sheet and the Zalo hand-offs for a signed-in s
 
 ## Assumptions (to confirm with the client)
 
-1. Staff, not the student, confirm that a lesson is complete. The management student profile now confirms the three trial lessons (see `docs/student-onboarding.md`); confirmation of the remaining formal lessons is not implemented yet.
+1. Staff, not the student, confirm that a lesson is complete. The management student profile confirms trial and formal plan lessons (see `docs/student-onboarding.md` and `docs/admin-learning-content.md`). Non-trial confirmation requires an active formal enrollment.
 2. The 9-day trial runs from `trialStartedAt`; the student area does not lock when it ends.
-3. Installers and documents are managed as `learning_resources` rows (private bucket + object path). No upload UI exists yet.
+3. Installers and documents are managed as `learning_resources` rows in a private bucket. Admins upload and edit them at `/quan-tri/tai-lieu`; limits and deletion rules are documented in `docs/admin-learning-content.md`.
 4. The install steps on `/hoc-vien/phan-mem` are generic placeholders.
 5. The checklist uses the existing timestamps `group1At`, `group2At`, `softwareReadyAt`, set by staff in the management student profile.
 

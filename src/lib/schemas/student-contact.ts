@@ -12,6 +12,7 @@ export const updateStudentContactSchema = z.object({
   fullName: leadSignupSchema.shape.fullName,
   phone: leadSignupSchema.shape.phone,
   email: contactEmailSchema,
+  duplicateAcknowledged: z.boolean().optional(),
 }).strict();
 
 export type UpdateStudentContactInput = z.input<typeof updateStudentContactSchema>;

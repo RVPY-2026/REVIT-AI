@@ -29,6 +29,41 @@
       "when": 1791612348946,
       "tag": "0003_signup_protection",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791963191085,
+      "tag": "0004_students_crm_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791969123227,
+      "tag": "0005_crm_review_function_security",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792072447131,
+      "tag": "0006_admin_learning_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792073873136,
+      "tag": "0007_audit_log_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792073899397,
+      "tag": "0008_permanent_delete",
+      "breakpoints": true
     }
   ]
 }

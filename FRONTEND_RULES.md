@@ -99,8 +99,8 @@ Theme changes transition color, background, border, and shadow values over about
   --primary-foreground: #ffffff;
   --glass: rgba(255, 255, 255, 0.72);
   --ring: #c2185b;
-  --success: #1f8a5b;
-  --warning: #b26a00;
+  --success: #187347;
+  --warning: #935700;
   --destructive: #c62828;
   --info: #2563eb;
 }
@@ -127,8 +127,10 @@ Theme changes transition color, background, border, and shadow values over about
 Gradients — use **only** in these places, never scattered across the page:
 - Marketing hero background (dark): `radial-gradient(55% 75% at 88% 8%, rgba(214,70,140,.50), transparent 62%), radial-gradient(65% 80% at 100% 100%, rgba(196,20,90,.62), transparent 62%), linear-gradient(120deg, #160a24 0%, #3b0d36 58%, #7d1048 100%)`
 - Marketing hero background (light): same shape with opacities `.20 / .22` over `#fdf9fb → #f7e8f0`.
-- Primary button: `linear-gradient(90deg, var(--primary-deep), var(--primary))`.
+- Primary button: `linear-gradient(90deg, var(--primary-button-start), var(--primary-button-end))`.
 - CTA band: `linear-gradient(110deg, #3b0d36, #a3124f 60%, #e0186c)`.
+
+Primary buttons share `--primary-button-start: #a3124f` and `--primary-button-end: #c2185b` in light and dark. White button labels retain AA contrast across the gradient; `--primary` remains the brighter link/focus accent in dark mode. Light status text uses the darker success/warning values above so outlined badges meet AA on cards. These tokens are showcased at `/ui-kit`.
 
 Status colors (`--success`, `--warning`, `--destructive`, `--info`) are for state only. Never use the accent (`--primary`) to signal state.
 
@@ -254,18 +256,20 @@ Single centered card with the Google sign-in button and an email field that send
 
 ## 5. Components and patterns
 
-- **Buttons:** `default` = gradient + shadow (one per view section), `outline` = 1px border, `ghost` for toolbar actions. Labels state the action.
+- **Buttons:** `default` = gradient + shadow (one per view section), `outline` = 1px border, `ghost` for toolbar actions. Labels state the action. CRM controls use `compact` / `icon-compact`: 44px on mobile/coarse pointers, 36px on desktop fine pointers. Set size on the component; never override all descendant buttons from a page.
 - **StatusBadge:** pill with 1px border in the status color, text in the same color, no fill. One mapping table in `lib/constants.ts`.
 - **IconTile:** Lucide icon inside a `primary-soft` tile (§3.4). App areas only; not used on marketing pages.
 - **DataTable:** sticky header; numeric columns right-aligned in mono; toolbar with search, filters and an **"Xuất Excel"** button that exports exactly the filtered rows (file name `rvpy-<list>-<yyyyMMdd>.xlsx`); row actions in a dropdown; becomes a **card list on mobile**.
 - **Kanban view:** columns = statuses, cards draggable, column header shows count.
-- **Destructive or important changes** (status changes, money, access): confirmation `AlertDialog`, then a toast with the result.
+- **Destructive or important changes** (money, access): confirmation `AlertDialog`, then a toast with the result. CRM classification applies immediately with an eight-second Undo toast; only dropped opens the required-reason dialog. Archive/restore/source transfer keep their reason/confirmation dialogs.
 - **Copy-to-clipboard:** phone numbers use an icon-only copy button immediately to their right, with a Vietnamese accessible label; other copy actions use icon + label, toast "Đã sao chép". Fallback to selecting the text if the clipboard API fails.
-- **Inline student editing:** click the value or pencil to edit in place; Save commits one field, Cancel/Escape discards the draft, and errors stay beside that field. Status uses a dropdown in its cell. Preserve immutable student codes, sources and signup dates.
+- **Inline student editing:** click the value or pencil to edit in place; Save commits one field, Cancel/Escape discards the draft, and errors stay beside that field. Status uses a dropdown in its cell. Preserve immutable student codes and signup dates. Source transfer is an admin-only profile action with an active target, reason and expected-source snapshot.
 - **Signup verification:** the public signup uses the shared `SignupVerification` widget. Zalo code renewal stays on the original confirmation page and shows the connected state when appropriate. Both patterns appear in `/ui-kit`. Contact dialogs retain drafts on conflicts and submit their initial field values for optimistic checks.
 - **Forms:** label above field, helper text below, inline error under the field in `--destructive`, submit disabled while pending.
 - **Every data view has four states:** loading (skeleton), data, empty (illustration + how to add the first item), error (message + retry).
 - **Documents shown to students are view-only:** no download button, no direct link to the source file.
+
+**Management viewer patterns:** reuse `ManagementPageHeader` (mono eyebrow, h1, helper and one action instance, sticky below the shell toolbar), `ManagementEmpty` (icon, explanation and corrective action), and `ManagementLoading` (matching source/audit/queue/learning skeletons). Use `ViewerFilters` for labelled date/search controls behind one mobile filter button and `ViewerPagination` for filter-preserving previous/next navigation. Audit pagination displays a bounded `10.000+` total and asks the reader to narrow filters beyond the 10,000 newest matches. Learning lists pass a domain eyebrow, controlled filter fields and a one-based `onPageChange` callback; URL-backed viewers retain their filter-preserving navigation. These components and both pagination modes are demonstrated in `/ui-kit`; do not clone the header action or its dialog state for mobile.
 
 ---
 

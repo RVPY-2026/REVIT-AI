@@ -56,7 +56,7 @@ export function StudentOnboardingPanel({ data, contactEmail, canOpenTrial, canAc
           {data.zalo.pendingCount > 0 && <p role="status" className="text-xs text-muted-foreground">{data.zalo.pendingCount} tin đang chờ gửi{data.zalo.oldestPendingAt && ` · từ ${formatDateTime(data.zalo.oldestPendingAt)}`}</p>}
           {data.zalo.failedCount > 0 && <div className="flex items-center gap-2">
             <p role="status" className="text-xs text-destructive">{data.zalo.failedCount} tin chưa gửi được</p>
-            {canEdit && <Button type="button" variant="outline" size="sm" disabled={blocked}
+            {canEdit && <Button type="button" variant="outline" size="compact" disabled={blocked}
               onClick={() => save(() => retryZaloMessages({ studentId: data.studentId }), "Đã thử gửi lại tin Zalo")}>Gửi lại</Button>}
           </div>}
         </div>
@@ -66,7 +66,7 @@ export function StudentOnboardingPanel({ data, contactEmail, canOpenTrial, canAc
             {data.enrollment?.trialStartedAt && <p className="text-xs text-muted-foreground">Học thử từ {formatDate(data.enrollment.trialStartedAt)}{data.enrollment.trialEndsAt && ` · hết 9 ngày vào ${formatDate(data.enrollment.trialEndsAt)}`}</p>}
             {!data.enrollment && <p className="text-sm text-muted-foreground">Mở học thử để tạo lộ trình và theo dõi ba bài học.</p>}
           </div>
-          {canOpenTrial && (!data.enrollment || (data.enrollment.kind === "trial" && !enrollmentActive)) && <Button disabled={blocked} size="sm" onClick={() => setConfirmation({
+          {canOpenTrial && (!data.enrollment || (data.enrollment.kind === "trial" && !enrollmentActive)) && <Button disabled={blocked} size="compact" onClick={() => setConfirmation({
             title: data.enrollment ? "Mở lại lượt học thử?" : "Xác nhận học thử?",
             description: "Học viên được chuyển sang đang học thử và có lộ trình riêng. Khi mở lại, tiến độ và ngày bắt đầu cũ được giữ nguyên. Nếu đã kết nối Bot Zalo và cài ảnh cảm ơn, hệ thống sẽ gửi ảnh sau khi xác nhận.",
             label: data.enrollment ? "Mở lại học thử" : "Xác nhận học thử", success: "Đã xác nhận học thử", run: () => openTrialEnrollment({ studentId: data.studentId }),
@@ -78,12 +78,12 @@ export function StudentOnboardingPanel({ data, contactEmail, canOpenTrial, canAc
           {data.account ? <div className="grid gap-2">
             <p className="break-all text-sm">{data.account.email}</p>
             <p className={`text-xs ${data.account.active ? "text-success" : "text-muted-foreground"}`}>{data.account.active ? "Đã cấp quyền học viên" : "Tài khoản chưa hoạt động. Kiểm tra quyền hoặc tình trạng vô hiệu hóa."}</p>
-            {!data.account.active && <Button className="w-fit" variant="outline" size="sm" disabled={blocked || !enrollmentActive} onClick={requestActivation}>Cấp quyền học viên</Button>}
+            {!data.account.active && <Button className="w-fit" variant="outline" size="compact" disabled={blocked || !enrollmentActive} onClick={requestActivation}>Cấp quyền học viên</Button>}
           </div> : <div className="grid gap-2">
             <label htmlFor={emailId} className="text-sm">Email đăng nhập</label>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Input id={emailId} type="email" autoComplete="off" value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} placeholder="hocvien@example.com" className="min-w-0 flex-1" />
-              <Button variant="outline" size="sm" disabled={blocked || !enrollmentActive} onClick={requestActivation}>Cấp quyền học viên</Button>
+              <Button variant="outline" size="compact" disabled={blocked || !enrollmentActive} onClick={requestActivation}>Cấp quyền học viên</Button>
             </div>
             <p className="text-xs text-muted-foreground">{enrollmentActive ? "Dùng đúng email học viên sẽ đăng nhập. Sửa email liên hệ không đổi tài khoản đã gắn." : "Bạn mở học thử trước khi cấp quyền đăng nhập."}</p>
           </div>}
@@ -93,7 +93,7 @@ export function StudentOnboardingPanel({ data, contactEmail, canOpenTrial, canAc
           <h3 className="text-sm font-medium">Checklist chuẩn bị</h3>
           {CHECKLIST_FIELDS.map((field) => <div key={field} className="flex items-center justify-between gap-3">
             <div className="min-w-0"><p className="text-sm">{CHECKLIST_LABELS[field]}</p>{data.checklist[field] && <p className="text-xs text-muted-foreground">{formatDateTime(data.checklist[field]!)}</p>}</div>
-            {canEdit ? <Button variant={data.checklist[field] ? "outline" : "ghost"} size="sm" aria-pressed={Boolean(data.checklist[field])} aria-label={`${data.checklist[field] ? "Bỏ đánh dấu" : "Đánh dấu"}: ${CHECKLIST_LABELS[field]}`} disabled={blocked}
+            {canEdit ? <Button variant={data.checklist[field] ? "outline" : "ghost"} size="compact" aria-pressed={Boolean(data.checklist[field])} aria-label={`${data.checklist[field] ? "Bỏ đánh dấu" : "Đánh dấu"}: ${CHECKLIST_LABELS[field]}`} disabled={blocked}
               onClick={() => save(() => updateStudentChecklist({ studentId: data.studentId, field, done: !data.checklist[field], expectedAt: data.checklist[field] }), "Đã cập nhật checklist")}>
               {data.checklist[field] && <Check aria-hidden="true" size={16} strokeWidth={1.75} />}{data.checklist[field] ? "Đã xong" : "Đánh dấu"}
             </Button> : <span className="shrink-0 text-xs text-muted-foreground">{data.checklist[field] ? "Đã xong" : "Chưa xong"}</span>}
@@ -107,7 +107,7 @@ export function StudentOnboardingPanel({ data, contactEmail, canOpenTrial, canAc
               <div className="min-w-0 flex-1"><p className="text-sm font-medium">Buổi {lesson.trialOrder} · {lesson.title}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{lesson.completedAt ? `Đã xác nhận ${formatDateTime(lesson.completedAt)}` : lesson.reportedAt ? `Chờ xác nhận · báo xong ${formatDateTime(lesson.reportedAt)}` : "Chưa báo hoàn thành"}</p>
               </div>
-              {canEdit && <Button variant="outline" size="sm" disabled={blocked || !enrollmentActive} onClick={() => setConfirmation({
+              {canEdit && <Button variant="outline" size="compact" disabled={blocked || !enrollmentActive} onClick={() => setConfirmation({
                 title: lesson.completedAt ? "Bỏ xác nhận hoàn thành?" : "Xác nhận hoàn thành bài học?",
                 description: `Buổi ${lesson.trialOrder}: ${lesson.title}. ${lesson.completedAt ? "Bài học sẽ trở lại trạng thái trước khi xác nhận." : lesson.reportedAt ? "Bạn đã kiểm tra bài học viên gửi và xác nhận hoàn thành." : "Học viên chưa báo xong trên web. Bạn vẫn có thể xác nhận nếu đã kiểm tra buổi học trực tiếp."}`,
                 label: lesson.completedAt ? "Bỏ xác nhận" : "Xác nhận hoàn thành", success: "Đã cập nhật tiến độ học thử",

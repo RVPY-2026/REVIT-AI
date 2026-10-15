@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readMigrations } from "./helpers/db-migrations.ts";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { insertLeadRecord } from "../src/server/lead-record.ts";
-import { enrollStudent, changeKanbanStage } from "../src/server/enrollment-record.ts";
+import { loadServerModule } from "./helpers/server-module.ts";
+import * as permissions from "../src/lib/auth/permissions.ts";
+import * as studentCode from "../src/lib/student-code.ts";
 import { FOUNDATION_LESSONS } from "../src/server/db/seed/lessons.ts";
 import schema from "../src/server/db/schema/index.ts";
 
@@ -12,16 +13,28 @@ const { PGlite } = await import(pathToFileURL(process.env.RVPY_PGLITE_MODULE).hr
 const { drizzle } = createRequire(import.meta.url)("drizzle-orm/pglite");
 const pg = await PGlite.create();
 const orm = drizzle(pg, { casing: "snake_case" });
+const dependencies = { "drizzle-orm": createRequire(import.meta.url)("drizzle-orm"), "@/server/db": { db: orm },
+  "@/server/db/schema": schema, "@/lib/auth/permissions": permissions, "@/lib/student-code": studentCode };
+const audit = await loadServerModule("src/server/audit.ts", dependencies);
+const scope = await loadServerModule("src/server/auth/scope.ts", dependencies);
+const recordDependencies = { ...dependencies, "@/server/audit": audit, "@/server/auth/scope": scope };
+const { insertLeadRecord } = await loadServerModule("src/server/lead-record.ts", recordDependencies);
+const { enrollStudent } = await loadServerModule("src/server/enrollment-record.ts", { ...recordDependencies,
+  // This migration/CRM runner never delivers messages. Outbox transitions have
+  // their own isolated integration tests; do not import the live DB boundary.
+  "@/server/zalo/outbox": { queueTrialThanks: async () => undefined } });
 try {
-  await pg.exec(await readFile(new URL("../src/server/db/migrations/0000_init.sql", import.meta.url), "utf8"));
+  const migrations = await readMigrations();
+  await pg.exec(migrations[0].sql);
   assert.deepEqual((await pg.query("SELECT count(*)::int n, bool_and(relrowsecurity) rls FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'")).rows, [{ n: 16, rls: true }]);
+  for (const migration of migrations.slice(1)) await pg.exec(migration.sql);
   const actorId = (await pg.query("INSERT INTO users(email,name) VALUES ('admin@example.com','Test admin') RETURNING id")).rows[0].id;
   const source = (await pg.query("INSERT INTO ad_sources(code,name) VALUES ('R','Test source') RETURNING id,code")).rows[0];
   const user = { id: actorId, roles: ["admin"], sourceIds: [], studentId: null };
   const lead = { fullName: "Test Person", phone: "0901234567" };
   const signup = () => orm.transaction(tx => insertLeadRecord(tx, source, lead, {}, null));
-  const [first, retry] = await Promise.all([signup(), signup()]);
-  assert.deepEqual(first, retry);
+  const first = await signup();
+  await assert.rejects(signup(), /đã đăng ký/);
   assert.equal((await pg.query("SELECT next_seq FROM source_month_counters")).rows[0].next_seq, 2);
   await pg.query("UPDATE students SET signed_up_at=now()-interval '6 minutes' WHERE id=$1", [first.id]);
   const later = await signup();
@@ -44,10 +57,8 @@ try {
   assert.equal((await pg.query("SELECT status FROM students WHERE id=$1", [first.id])).rows[0].status, "enrolled");
   assert.deepEqual((await pg.query("SELECT title,base_days FROM study_plan_lessons WHERE enrollment_id=$1 ORDER BY sort_order", [enrollment.id])).rows, before);
   await assert.rejects(orm.transaction(tx => enrollStudent(tx, user, first.id)), /chính thức/);
-  await assert.rejects(orm.transaction(tx => changeKanbanStage(tx, user, first.id, "consulting")), /thao tác/);
   const sale = { ...user, roles: ["sale"], sourceIds: [source.id] };
   await assert.rejects(orm.transaction(tx => enrollStudent(tx, sale, later.id, { agreedFeeVnd: 1 })), /quyền/);
-  await assert.rejects(orm.transaction(tx => changeKanbanStage(tx, sale, first.id, "dropped")), /quản trị/);
   await assert.rejects(orm.transaction(tx => enrollStudent(tx, { ...sale, sourceIds: [] }, later.id)), /tìm thấy/);
   await pg.query("INSERT INTO payments(student_id,enrollment_id,amount_vnd,paid_at) VALUES ($1,$2,4500000,now())", [first.id,enrollment.id]);
   await assert.rejects(pg.query("INSERT INTO payments(student_id,enrollment_id,amount_vnd,paid_at) VALUES ($1,$2,1,now())", [later.id,enrollment.id]), /payments_enrollment_student_fk/);
@@ -56,8 +67,7 @@ try {
   await assert.rejects(pg.exec("INSERT INTO learning_resources(title,external_url) VALUES ('Drive','https://drive.google.com/test')"), /external_provider/);
   await pg.exec("INSERT INTO learning_resources(title,bucket,object_path) VALUES ('Private','materials','a.pdf'); INSERT INTO learning_resources(title,external_url) VALUES ('Video','https://www.youtube-nocookie.com/embed/abcdefghijk')");
   await assert.rejects(pg.query("INSERT INTO student_status_events(student_id,to_status) VALUES ($1,'paid')", [first.id]), /student_status/);
-  await orm.transaction(tx => changeKanbanStage(tx, user, first.id, "dropped"));
-  assert.equal((await pg.query("SELECT status FROM enrollments WHERE id=$1", [enrollment.id])).rows[0].status, "cancelled");
+  assert.equal((await pg.query("SELECT status FROM enrollments WHERE id=$1", [enrollment.id])).rows[0].status, "active");
   const allocate = (month) => pg.query(`INSERT INTO source_month_counters(source_id,code_month,next_seq)
     VALUES ($1,$2,2) ON CONFLICT(source_id,code_month) DO UPDATE
     SET next_seq=source_month_counters.next_seq+1 WHERE source_month_counters.next_seq<=999 RETURNING next_seq-1 seq`, [source.id,month]);

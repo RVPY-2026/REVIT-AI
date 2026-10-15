@@ -33,7 +33,7 @@ function DialogContent({ className, children, showCloseButton = true, ...props }
         className,
       )} {...props}>
         {children}
-        {showCloseButton && <DialogPrimitive.Close aria-label="Đóng hộp thoại" className="absolute top-3 right-3 grid size-9 place-items-center rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none">
+        {showCloseButton && <DialogPrimitive.Close aria-label="Đóng hộp thoại" className="absolute top-3 right-3 grid size-11 md:size-9 [@media(pointer:coarse)]:size-11 place-items-center rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none">
           <X aria-hidden="true" className="size-4" strokeWidth={1.75} />
         </DialogPrimitive.Close>}
       </DialogPrimitive.Content>

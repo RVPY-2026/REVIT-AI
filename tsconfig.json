@@ -36,10 +36,15 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     ".next-crm-check/types/**/*.ts",
-    ".next-crm-check/dev/types/**/*.ts"
+    ".next-crm-check/dev/types/**/*.ts",
+    ".next-learning/types/**/*.ts",
+    ".next-learning/dev/types/**/*.ts",
+    ".next-crm-hardening-check/types/**/*.ts",
+    ".next-crm-hardening-check/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
+    "tmp",
     ".next-filter-preview",
     ".next-onboarding-preview"
   ]

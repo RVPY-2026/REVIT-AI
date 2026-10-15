@@ -10,6 +10,11 @@ import { StudentFilterToolbar } from "@/components/admin/StudentFilterToolbar";
 import { ManualStudentDialog } from "@/components/admin/ManualStudentDialog";
 import { InlineStudentField } from "@/components/admin/InlineStudentField";
 import { StudentTable } from "@/components/admin/StudentTable";
+import { CallNoteForm } from "@/components/admin/CallNoteForm";
+import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning";
+import { StudentManagementActions } from "@/components/admin/StudentManagementActions";
+import { StudentPermanentDelete } from "@/components/admin/StudentPermanentDelete";
+import { TrialSummary } from "@/components/admin/TrialSummary";
 import { StudentOnboardingPanel } from "@/components/admin/StudentOnboardingPanel";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
@@ -23,14 +28,21 @@ const columns: DataTableColumn<ExampleRow>[] = [
 
 /** Fake records keep the development showcase independent of database access. */
 export function CrmComponentShowcase() {
-  return <div className="grid min-w-0 gap-4">
+  return <div className="grid min-w-0 grid-cols-1 gap-4">
     <StudentOnboardingPanel preview canOpenTrial canActivate canEdit contactEmail="hocvien@example.com" data={{
       studentId: "00000000-0000-4000-8000-000000000001", account: null, zalo: { connected: true, failedCount: 1, pendingCount: 1, oldestPendingAt: "2026-10-10T00:00:00.000Z" },
       checklist: { zaloFriendAt: "2026-10-09T00:00:00.000Z", group1At: null, group2At: null, feeSentAt: null, softwareReadyAt: null, officialZaloAt: null },
       enrollment: { kind: "trial", status: "active", trialStartedAt: "2026-10-09T00:00:00.000Z", trialEndsAt: "2026-10-18T00:00:00.000Z" },
       lessons: [1, 2, 3].map((order) => ({ id: `mock-trial-${order}`, title: `Bài học thử ${order}`, trialOrder: order, reportedAt: order === 1 ? "2026-10-10T00:00:00.000Z" : null, completedAt: null, progressNote: order === 1 ? "Em đã hoàn thành bài tập." : null, submissionUrl: null })),
     }} />
-    <StudentFilterToolbar filter={{}} sources={[{ id: "mock-source-r", code: "R", name: "RVPY" }, { id: "mock-source-a", code: "A", name: "Nguồn mẫu A" }]} />
+    <div className="flex flex-wrap gap-2"><Button size="compact">Nút gọn · cảm ứng 44px</Button><ClipboardButton text="R2610001" iconOnly label="Sao chép mẫu nút gọn" /></div>
+    <CallNoteForm studentId="mock-student-1" preview />
+    <StudentPermanentDelete preview student={{ id: "mock-student-14", code: "R2610005", archivedAt: "2026-09-01T00:00:00Z" }} check={{ blockers: [] }} />
+    <StudentPermanentDelete preview student={{ id: "mock-student-13", code: "R2610004", archivedAt: "2026-10-14T00:00:00Z" }} check={{ blockers: ["Hồ sơ phải được lưu trữ ít nhất 30 ngày trước khi xóa vĩnh viễn.", "Hồ sơ đã có giao dịch thanh toán."] }} />
+    <DuplicatePhoneWarning matches={[{ id: "mock-student-1", code: "A2610001", fullName: "Học viên mẫu", status: "consulting", sourceCode: "A", signedUpAt: "2026-10-09T00:00:00Z" }, { otherSource: true }]} />
+    <StudentManagementActions student={{ id: "mock-student-1", sourceId: "mock-source-a", archivedAt: null }} sources={[{ id: "mock-source-a", code: "A", name: "Nguồn mẫu A" }, { id: "mock-source-r", code: "R", name: "RVPY" }]} />
+    <TrialSummary student={{ id: "mock-student-1", code: "A2610001", fullName: "Học viên mẫu", phone: "0901234567", email: null, status: "trial", sourceId: "mock-source-a", sourceCode: "A", sourceName: "Nguồn mẫu A", signedUpAt: "2026-10-09T00:00:00Z", lastContactAt: null, trial: { daysLeft: 3, checklist: 2, confirmed: 1, hasPlan: true } }} />
+    <StudentFilterToolbar admin counts={{ new: 2, consulting: 3, trial: 1, enrolled: 1, dropped: 1 }} dueCount={4} filter={{}} sources={[{ id: "mock-source-r", code: "R", name: "RVPY" }, { id: "mock-source-a", code: "A", name: "Nguồn mẫu A" }]} />
     <StudentTable editable rows={[{ id: "mock-student-1", code: "R2610001", fullName: "Học viên mẫu", phone: "0901234567", email: "hocvien@example.com", status: "new", sourceId: "mock-source-r", sourceCode: "R", sourceName: "RVPY", signedUpAt: "2026-10-09T00:00:00Z", lastContactAt: null }]} preview />
     <div className="flex flex-wrap items-center gap-4">
       <ViewSwitch filter={{}} view="table" />

@@ -20,6 +20,9 @@ const PERMISSIONS = {
   "students.view": ["admin", "sale"], // sale: own sources only (scoped in queries)
   "students.edit": ["admin", "sale"],
   "students.create": ["admin", "sale"], // sale: active sources they own only
+  "students.archive": ["admin"],
+  "students.delete": ["admin"],
+  "students.transfer": ["admin"],
   "enrollments.trial": ["admin", "sale"],
   "students.activate": ["admin"],
   "students.learning.edit": ["admin", "sale"],
@@ -36,6 +39,10 @@ const PERMISSIONS = {
   "settings.manage": ["admin"],
   "roles.manage": ["admin"], // grant/revoke admin and sale on other accounts (roles-manager.ts)
   "student-area.view": ["admin", "student"],
+  "resources.manage": ["admin"],
+  "lessons.manage": ["admin"],
+  "audit.view": ["admin"],
+  "zalo.view": ["admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

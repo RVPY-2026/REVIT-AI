@@ -12,7 +12,7 @@ const studentId = "00000000-0000-4000-8000-000000000001";
 test("call note input trims body and enforces UUID and length", () => {
   assert.deepEqual(studentNoteSchema.parse({ studentId, body: "  Gọi lại ngày mai  " }), {
     studentId,
-    body: "Gọi lại ngày mai",
+    body: "Gọi lại ngày mai", channel: "call",
   });
   assert.equal(studentNoteSchema.safeParse({ studentId: "not-an-id", body: "Ghi chú" }).success, false);
   assert.equal(studentNoteSchema.safeParse({ studentId, body: "  " }).success, false);

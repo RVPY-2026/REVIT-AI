@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { saveStudentContactSchema, contactPatch, ContactConflictError } from "@/lib/schemas/student-contact";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -10,6 +10,7 @@ import { audit } from "@/server/audit";
 import { db } from "@/server/db";
 import { students } from "@/server/db/schema";
 import type { ActionResult } from "@/server/result";
+import { DuplicatePhoneError, requirePhoneAcknowledgment } from "@/server/phone-matches";
 
 export async function updateStudentContact(input: unknown): Promise<ActionResult<{ id: string }>> {
   const parsed = saveStudentContactSchema.safeParse(input);
@@ -28,7 +29,7 @@ export async function updateStudentContact(input: unknown): Promise<ActionResult
         phone: students.phone,
         email: students.email,
       }).from(students)
-        .where(and(eq(students.id, parsed.data.studentId), studentScope(user, "management")))
+        .where(and(eq(students.id, parsed.data.studentId), studentScope(user, "management"), isNull(students.archivedAt)))
         .for("update")
         .limit(1);
 
@@ -36,8 +37,9 @@ export async function updateStudentContact(input: unknown): Promise<ActionResult
 
       const patch = contactPatch(student, parsed.data);
       if (!Object.keys(patch).length) return { id: student.id };
+      if (patch.phone) await requirePhoneAcknowledgment(tx, user, patch.phone, parsed.data.duplicateAcknowledged, student.id);
       const [row] = await tx.update(students).set(patch)
-        .where(and(eq(students.id, student.id), studentScope(user, "management"))).returning({ id: students.id });
+        .where(and(eq(students.id, student.id), studentScope(user, "management"), isNull(students.archivedAt))).returning({ id: students.id });
 
       await audit(tx, {
         actorId: user.id,
@@ -47,6 +49,7 @@ export async function updateStudentContact(input: unknown): Promise<ActionResult
         data: {
           before: { fullName: student.fullName, phone: student.phone, email: student.email },
           after: { fullName: student.fullName, phone: student.phone, email: student.email, ...patch },
+          ...(patch.phone && parsed.data.duplicateAcknowledged ? { duplicateAcknowledged: true } : {}),
         },
       });
       return row;
@@ -60,6 +63,7 @@ export async function updateStudentContact(input: unknown): Promise<ActionResult
     return { ok: true, data: updated };
   } catch (error) {
     if (error instanceof ContactConflictError) return { ok: false, error: error.message };
+    if (error instanceof DuplicatePhoneError) return { ok: false, error: error.message };
     return { ok: false, error: "Chưa thể cập nhật thông tin học viên. Vui lòng thử lại." };
   }
 }

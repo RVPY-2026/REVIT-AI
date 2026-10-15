@@ -1,5 +1,8 @@
 // Fixed strings, enums and Vietnamese labels (FRONTEND_RULES §6). Keep links here, not inline.
 
+export const ADMIN_STATUS_META = { active: { label: "Hoạt động", tone: "success" }, inactive: { label: "Tạm dừng", tone: "muted" },
+  pending: { label: "Chờ gửi", tone: "warning" }, sent: { label: "Đã gửi", tone: "success" }, failed: { label: "Lỗi", tone: "destructive" } } as const;
+
 export const SITE = {
   name: "RVPY",
   studio: "Ocean Studio",
