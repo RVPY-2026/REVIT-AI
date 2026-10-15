@@ -6,6 +6,7 @@ import type { z } from "zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LearningPrimaryButton } from "./LearningPrimaryButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -51,6 +52,11 @@ export function LearningResourceDialog({ resource, lessons, preview, onClose }: 
   async function close() { if (!pending) { await cancel(); onClose(); } }
   return <Dialog open onOpenChange={(open) => { if (!open) void close(); }}><DialogContent className="[&>button]:size-11 max-sm:content-start max-sm:inset-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none"><DialogHeader><DialogTitle>{resource ? "Sửa tài liệu" : "Thêm tài liệu"}</DialogTitle><DialogDescription>{resource ? "Thay tệp vẫn giữ nguyên liên kết của học viên." : "Chọn tệp hoặc video để học viên xem."}</DialogDescription></DialogHeader>
   <form noValidate className="grid content-start gap-4" onSubmit={(event) => { void form.handleSubmit((data) => start(async () => {
+    if (data.source === "file" && !data.uploadId && (file || resource?.format === "youtube")) {
+      form.setError("uploadId", { message: "Bạn tải tệp lên trước khi lưu." });
+      document.getElementById("resource-file-picker")?.focus();
+      return;
+    }
     const result = await saveResource(data);
     if (!result.ok) { form.setError("root", { message: result.error }); return; }
     reservation.current = null; toast.success(`Đã lưu tài liệu ${data.title}`); if (result.data.cleanupPending) toast.error("Đã lưu tài liệu, tệp cũ chưa được dọn. Bạn báo quản trị viên nhé."); router.refresh(); onClose();
@@ -63,6 +69,6 @@ export function LearningResourceDialog({ resource, lessons, preview, onClose }: 
     <LearningSelect id="resource-audience" label="Đối tượng" value={values.audience ?? "formal"} options={Object.entries(AUDIENCE_LABELS).map(([value, label]) => ({ value, label }))} onChange={(value) => form.setValue("audience", value as "all" | "formal" | "trial")} />
     <LearningSelect id="resource-mode" label="Cách sử dụng" value={mode} disabled={source === "youtube" || uploading} options={[{ value: "view", label: "Chỉ xem" }, { value: "download", label: "Cho tải" }]} onChange={(value) => { void cancel(); form.setValue("mode", value as "view" | "download"); }} />
     <label className="flex min-h-11 items-center gap-3"><input type="checkbox" {...form.register("active")} className="size-5 accent-primary" />Đang dùng tài liệu</label>
-    {preview && <p className="text-sm text-muted-foreground">Chế độ xem thử chưa lưu thay đổi.</p>}<p role="status" aria-live="polite" className="text-sm text-destructive">{errors.root?.message}</p><DialogFooter><Button type="button" variant="outline" disabled={pending} onClick={() => void close()}>Đóng hộp thoại</Button><Button type="submit" disabled={pending || uploading || preview}>{pending ? "Đang lưu tài liệu…" : "Lưu tài liệu"}</Button></DialogFooter>
+    {preview && <p className="text-sm text-muted-foreground">Chế độ xem thử chưa lưu thay đổi.</p>}<p role="status" aria-live="polite" className="text-sm text-destructive">{errors.root?.message}</p><DialogFooter><Button type="button" variant="outline" disabled={pending} onClick={() => void close()}>Đóng hộp thoại</Button><LearningPrimaryButton type="submit" disabled={pending || uploading || preview}>{pending ? "Đang lưu tài liệu…" : "Lưu tài liệu"}</LearningPrimaryButton></DialogFooter>
   </form></DialogContent></Dialog>;
 }

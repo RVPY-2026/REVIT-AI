@@ -11,6 +11,26 @@ await context.addCookies([{ name: "rvpy-mock-role", value: "admin", url: "http:/
 const page = await context.newPage();
 await page.route("**/*", (route) => route.request().headers()["next-router-prefetch"] ? route.abort() : route.continue());
 const results = [];
+const scriptChecks = [];
+page.on("response", (response) => {
+  if (response.request().resourceType() === "script") scriptChecks.push(response.text().then((body) => !body.includes('"learning-resources"')).catch(() => null));
+});
+async function checkContrast() {
+  return page.evaluate(() => {
+    const rgb = (value) => value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
+    const luminance = (value) => value.map((v) => { const n = v / 255; return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4; }).reduce((total, v, i) => total + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const targets = [...document.querySelectorAll('[data-learning-primary]:not(:disabled), [data-learning-status]')].filter((element) => element.getClientRects().length);
+    const ratios = targets.map((element) => {
+      const ancestors = []; for (let parent = element; parent; parent = parent.parentElement) ancestors.unshift(parent);
+      let background = [255, 255, 255];
+      for (const ancestor of ancestors) { const color = rgb(getComputedStyle(ancestor).backgroundColor); const alpha = color[3] ?? 1; background = background.map((value, i) => color[i] * alpha + value * (1 - alpha)); }
+      const foreground = rgb(getComputedStyle(element).color).slice(0, 3);
+      const levels = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+      return (levels[0] + 0.05) / (levels[1] + 0.05);
+    });
+    return { checked: targets.length, minimum: ratios.length ? Math.min(...ratios) : null };
+  });
+}
 page.setDefaultTimeout(60000);
 try {
   for (const route of (process.env.RVPY_VISUAL_SKIP_REFERENCES ? [] : ["/ui-kit", "/quan-tri/hoc-vien", "/quan-tri/phan-quyen", "/quan-tri/nhap-du-lieu"])) {
@@ -31,8 +51,10 @@ try {
           else await page.locator('[data-learning-ready="true"]').waitFor();
           await page.screenshot({ path: `${output}/${name}-${width}-${theme}-${state}.png`, fullPage: false, caret: "initial", animations: "disabled" });
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-          results.push({ page: name, width, theme, state, overflow });
+          const contrast = await checkContrast();
+          results.push({ page: name, width, theme, state, overflow, contrast });
           if (overflow) throw new Error(`Page overflow: ${name}/${width}/${theme}/${state}`);
+          if (contrast.minimum !== null && contrast.minimum < 4.5) throw new Error(`Contrast below AA: ${name}/${width}/${theme}/${state}`);
         }
         await page.goto(`http://localhost:3106/quan-tri/${route}`, { waitUntil: "domcontentloaded" });
         await page.locator('[data-learning-ready="true"]').waitFor();
@@ -74,5 +96,8 @@ try {
   await page.waitForURL("**/khong-co-quyen");
   await page.screenshot({ path: `${output}/resources-sale-no-permission.png`, fullPage: false, caret: "initial", animations: "disabled" });
   results.push({ permission: "sale redirected to no-permission" });
+  const scanned = (await Promise.all(scriptChecks)).filter((value) => value !== null);
+  if (!scanned.length || scanned.some((value) => !value)) throw new Error("Private bucket configuration reached a client script");
+  results.push({ security: { clientScriptsChecked: scanned.length, privateBucketMatches: 0 } });
 } finally { await writeFile(`${output}/${process.env.RVPY_VISUAL_PROGRESS_ONLY ? "progress-followup-checks" : process.env.RVPY_VISUAL_FORMS_ONLY ? "form-followup-checks" : "checks"}.json`, JSON.stringify(results, null, 2)); await browser.close(); }
 console.log(JSON.stringify({ screenshots: output, checks: results.length }));

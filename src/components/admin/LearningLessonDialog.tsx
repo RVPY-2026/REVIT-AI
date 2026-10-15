@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { LearningPrimaryButton } from "./LearningPrimaryButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LearningSelect } from "./LearningSelect";
@@ -24,5 +25,5 @@ export function LearningLessonDialog({ lesson, preview, onClose }: { lesson: Man
   <LearningSelect id="lesson-phase" label="Giai đoạn" value={phase} options={Object.entries(PHASE_LABELS).map(([value, label]) => ({ value, label }))} disabled={!!lesson} onChange={(value) => form.setValue("phase", value as "foundation" | "specialist")} />
   <div className="grid gap-2"><Label htmlFor="lesson-numbers">Số bài học</Label><Controller name="lessonNumbers" control={form.control} render={({ field }) => <Input id="lesson-numbers" inputMode="text" name={field.name} ref={field.ref} onBlur={field.onBlur} value={field.value.map((n) => Number.isNaN(n) ? "" : n).join("/")} onChange={(event) => field.onChange(event.target.value.split("/").map((value) => value === "" ? NaN : Number(value)))} aria-invalid={!!errors.lessonNumbers} />} /><p className="text-xs text-muted-foreground">Bài gộp: nhập 4/5.</p><p className="text-sm text-destructive">{errors.lessonNumbers?.message ?? errors.lessonNumbers?.[0]?.message}</p></div>
   <div className="grid gap-2"><Label htmlFor="lesson-days">Số ngày dự kiến</Label><Input id="lesson-days" type="number" min={0} max={3650} inputMode="numeric" {...form.register("baseDays", { setValueAs: (value: string) => value === "" ? null : Number(value) })} /><p className="text-sm text-destructive">{errors.baseDays?.message}</p></div>
-  {preview && <p className="text-sm text-muted-foreground">Chế độ xem thử chưa lưu thay đổi.</p>}<p role="status" aria-live="polite" className="text-sm text-destructive">{errors.root?.message}</p><DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={pending}>Đóng hộp thoại</Button><Button type="submit" disabled={pending || preview}>{pending ? "Đang lưu bài…" : "Lưu bài học"}</Button></DialogFooter></form></DialogContent></Dialog>;
+  {preview && <p className="text-sm text-muted-foreground">Chế độ xem thử chưa lưu thay đổi.</p>}<p role="status" aria-live="polite" className="text-sm text-destructive">{errors.root?.message}</p><DialogFooter><Button type="button" variant="outline" onClick={onClose} disabled={pending}>Đóng hộp thoại</Button><LearningPrimaryButton type="submit" disabled={pending || preview}>{pending ? "Đang lưu bài…" : "Lưu bài học"}</LearningPrimaryButton></DialogFooter></form></DialogContent></Dialog>;
 }
