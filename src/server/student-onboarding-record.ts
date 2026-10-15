@@ -66,22 +66,33 @@ export async function setStudentChecklist(tx: Tx, user: SessionUser, data: z.inf
 }
 
 export async function confirmStudentTrialLesson(tx: Tx, user: SessionUser, data: z.infer<typeof confirmTrialLessonSchema>) {
+  return confirmStudentLesson(tx, user, data, true);
+}
+
+/** Shared confirmation path: trial callers retain their original restriction. */
+export async function confirmStudentLesson(tx: Tx, user: SessionUser, data: z.infer<typeof confirmTrialLessonSchema>, trialOnly = false, reportedOnly = false) {
   if (!can(user, "students.learning.edit")) throw new OnboardingError("Bạn không có quyền xác nhận bài học.");
   await lockStudent(tx, user, data.studentId);
-  const [row] = await tx.select({ id: studyPlanLessons.id, trialOrder: studyPlanLessons.trialOrder, status: enrollments.status,
+  // Enrollment activation/withdrawal must not race confirmation.
+  await tx.select({ id: enrollments.id }).from(enrollments).innerJoin(students, eq(students.id, enrollments.studentId))
+    .where(and(eq(students.id, data.studentId), studentScope(user, "management"))).for("update", { of: enrollments });
+  const [row] = await tx.select({ id: studyPlanLessons.id, trialOrder: studyPlanLessons.trialOrder, status: enrollments.status, kind: enrollments.kind,
     completedAt: studyPlanLessons.completedAt, reportedAt: studyPlanLessons.reportedAt })
     .from(studyPlanLessons).innerJoin(enrollments, eq(enrollments.id, studyPlanLessons.enrollmentId))
     .innerJoin(students, eq(students.id, enrollments.studentId))
     .where(and(eq(students.id, data.studentId), eq(studyPlanLessons.id, data.planLessonId), studentScope(user, "management"), isNull(students.archivedAt)))
     .for("update", { of: studyPlanLessons });
-  if (!row || row.trialOrder === null) throw new OnboardingError("Không tìm thấy bài học thử của học viên này.");
+  if (!row || (trialOnly && row.trialOrder === null)) throw new OnboardingError("Không tìm thấy bài học thử của học viên này.");
+  if (row.trialOrder === null && row.kind !== "formal") throw new OnboardingError("Bạn mở học chính thức trước khi xác nhận bài này.");
+  if (reportedOnly && (!row.reportedAt || row.completedAt)) throw new OnboardingError("Danh sách bài đã báo đã thay đổi. Bạn tải lại hồ sơ nhé.");
   if (row.status !== "active") throw new OnboardingError("Lượt học đang tạm dừng hoặc đã hủy.");
   if (iso(row.completedAt) !== data.expectedCompletedAt || iso(row.reportedAt) !== data.expectedReportedAt)
     throw new OnboardingError("Tiến độ bài học đã thay đổi. Bạn tải lại hồ sơ để kiểm tra nhé.");
-  if (Boolean(row.completedAt) === data.completed) return { id: data.studentId };
-  await tx.update(studyPlanLessons).set({ completedAt: data.completed ? new Date() : null }).where(eq(studyPlanLessons.id, row.id));
+  if (Boolean(row.completedAt) === data.completed) return { id: data.studentId, completedAt: iso(row.completedAt), reportedAt: iso(row.reportedAt) };
+  const completedAt = data.completed ? new Date() : null;
+  await tx.update(studyPlanLessons).set({ completedAt }).where(eq(studyPlanLessons.id, row.id));
   await audit(tx, { actorId: user.id, action: data.completed ? "lesson.confirmed" : "lesson.confirmation_withdrawn", entity: "study_plan_lessons", entityId: row.id, data: { studentId: data.studentId } });
-  return { id: data.studentId };
+  return { id: data.studentId, completedAt: iso(completedAt), reportedAt: iso(row.reportedAt) };
 }
 
 export async function retryStudentZaloMessages(tx: Tx, user: SessionUser, studentId: string) {

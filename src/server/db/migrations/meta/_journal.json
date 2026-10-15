@@ -43,6 +43,13 @@
       "when": 1791969123227,
       "tag": "0005_crm_review_function_security",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792072084281,
+      "tag": "0006_admin_learning_content",
+      "breakpoints": true
     }
   ]
 }

@@ -21,6 +21,8 @@
 /.crm-*-output.txt
 /.next-filter-preview/
 /.next-onboarding-preview/
+/.next-learning/
+/tmp/
 /out/
 
 # production
@@ -56,3 +58,4 @@ design/source-images/
 
 # Local Netlify folder
 .netlify
+/design/reference/admin-learning-content/

@@ -1,3 +1,4 @@
+import { StudentLearningProgress } from "@/components/admin/StudentLearningProgress";
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
@@ -103,6 +104,7 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
           {!student.archivedAt && <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
             <StudentLearning studentId={id} contactEmail={student.email} user={user} />
           </Suspense>}
+          {!student.archivedAt && <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}><StudentLearningProgress studentId={id} /></Suspense>}
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><UserRound aria-hidden="true" size={18} strokeWidth={1.75} />Thông tin đăng ký</CardTitle></CardHeader>
             <CardContent>

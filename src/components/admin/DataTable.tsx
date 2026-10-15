@@ -12,17 +12,22 @@ export function DataTable<TData extends RowData>({
   data,
   mobileCards,
   rowKey,
+  presentation = "responsive",
+  label = "Danh sách học viên",
 }: {
   columns: Array<DataTableColumn<TData>>
   data: TData[]
   mobileCards: (item: TData) => ReactNode
   rowKey?: (item: TData) => string
+  /** Responsive uses cards below md; wide below lg; cards never renders a table. */
+  presentation?: "responsive" | "wide" | "cards"
+  label?: string
 }) {
   const table = useTable({ features: dataTableFeatures, columns, data })
 
   return (
     <>
-      <div className="relative hidden min-w-0 overflow-x-auto rounded-2xl border border-border md:block">
+      {presentation !== "cards" && <div role="region" aria-label={label} tabIndex={0} className={`relative hidden max-h-96 min-w-0 overflow-auto rounded-2xl border border-border ${presentation === "wide" ? "lg:block" : "md:block"}`}>
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -47,8 +52,8 @@ export function DataTable<TData extends RowData>({
             ))}
           </tbody>
         </table>
-      </div>
-      <ul className="grid gap-3 md:hidden" aria-label="Danh sách học viên">
+      </div>}
+      <ul className={presentation === "cards" ? "grid gap-3 lg:grid-cols-2" : presentation === "wide" ? "grid gap-3 lg:hidden" : "grid gap-3 md:hidden"} aria-label={label}>
         {data.map((item, index) => <li key={rowKey?.(item) ?? index}>{mobileCards(item)}</li>)}
       </ul>
     </>
