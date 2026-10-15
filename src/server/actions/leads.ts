@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -38,7 +38,8 @@ export async function submitLeadSignup(input: LeadSignupInput): Promise<ActionRe
     const signupToken = newSignupToken();
     const row = await db.transaction(async (tx) => {
       const candidates = await tx.select({ id: adSources.id, code: adSources.code }).from(adSources)
-        .where(and(inArray(adSources.code, [sourceCode ?? DEFAULT_SOURCE, DEFAULT_SOURCE]), eq(adSources.active, true)));
+        .where(and(inArray(adSources.code, [sourceCode ?? DEFAULT_SOURCE, DEFAULT_SOURCE]), eq(adSources.active, true)))
+        .orderBy(asc(adSources.code)).for("share");
       const source = candidates.find((s) => s.code === sourceCode) ?? candidates.find((s) => s.code === DEFAULT_SOURCE);
       if (!source) throw new Error("Default source is missing");
       // Public attribution lookup: internal ID only, never exposed to the caller.

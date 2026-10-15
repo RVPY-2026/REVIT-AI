@@ -41,6 +41,8 @@ const PERMISSIONS = {
   "student-area.view": ["admin", "student"],
   "resources.manage": ["admin"],
   "lessons.manage": ["admin"],
+  "audit.view": ["admin"],
+  "zalo.view": ["admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

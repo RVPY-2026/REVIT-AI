@@ -1,9 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readMigrations } from "./db-migrations";
 
-/** Apply the actual committed journal to an isolated fixture; never connects to the app DB. */
+/** Apply the committed journal, including the shared migration file/order checks. */
 export async function migrateTestDatabase(pg: { exec: (sql: string) => Promise<unknown> }, startAt = 0) {
-  const root = new URL("../../src/server/db/migrations/", import.meta.url);
-  const journal = JSON.parse(await readFile(new URL("meta/_journal.json", root), "utf8")) as { entries: { idx: number; tag: string }[] };
-  for (const entry of journal.entries.filter(entry => entry.idx >= startAt))
-    await pg.exec(await readFile(new URL(`${entry.tag}.sql`, root), "utf8"));
+  for (const migration of (await readMigrations()).slice(startAt)) await pg.exec(migration.sql);
 }

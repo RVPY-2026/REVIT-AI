@@ -1,10 +1,10 @@
-import { migrateTestDatabase } from "./helpers/migrations.ts";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readMigrations } from "./helpers/db-migrations.ts";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { insertLeadRecord } from "../src/server/lead-record.ts";
-import { enrollStudent } from "../src/server/enrollment-record.ts";
+import { loadServerModule } from "./helpers/server-module.ts";
+import * as permissions from "../src/lib/auth/permissions.ts";
+import * as studentCode from "../src/lib/student-code.ts";
 import { FOUNDATION_LESSONS } from "../src/server/db/seed/lessons.ts";
 import schema from "../src/server/db/schema/index.ts";
 
@@ -13,10 +13,21 @@ const { PGlite } = await import(pathToFileURL(process.env.RVPY_PGLITE_MODULE).hr
 const { drizzle } = createRequire(import.meta.url)("drizzle-orm/pglite");
 const pg = await PGlite.create();
 const orm = drizzle(pg, { casing: "snake_case" });
+const dependencies = { "drizzle-orm": createRequire(import.meta.url)("drizzle-orm"), "@/server/db": { db: orm },
+  "@/server/db/schema": schema, "@/lib/auth/permissions": permissions, "@/lib/student-code": studentCode };
+const audit = await loadServerModule("src/server/audit.ts", dependencies);
+const scope = await loadServerModule("src/server/auth/scope.ts", dependencies);
+const recordDependencies = { ...dependencies, "@/server/audit": audit, "@/server/auth/scope": scope };
+const { insertLeadRecord } = await loadServerModule("src/server/lead-record.ts", recordDependencies);
+const { enrollStudent } = await loadServerModule("src/server/enrollment-record.ts", { ...recordDependencies,
+  // This migration/CRM runner never delivers messages. Outbox transitions have
+  // their own isolated integration tests; do not import the live DB boundary.
+  "@/server/zalo/outbox": { queueTrialThanks: async () => undefined } });
 try {
-  await pg.exec(await readFile(new URL("../src/server/db/migrations/0000_init.sql", import.meta.url), "utf8"));
+  const migrations = await readMigrations();
+  await pg.exec(migrations[0].sql);
   assert.deepEqual((await pg.query("SELECT count(*)::int n, bool_and(relrowsecurity) rls FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'")).rows, [{ n: 16, rls: true }]);
-  await migrateTestDatabase(pg, 1);
+  for (const migration of migrations.slice(1)) await pg.exec(migration.sql);
   const actorId = (await pg.query("INSERT INTO users(email,name) VALUES ('admin@example.com','Test admin') RETURNING id")).rows[0].id;
   const source = (await pg.query("INSERT INTO ad_sources(code,name) VALUES ('R','Test source') RETURNING id,code")).rows[0];
   const user = { id: actorId, roles: ["admin"], sourceIds: [], studentId: null };

@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-*/
 /.next-signup-check/
 /.next-crm-check/
 /.next-crm-hardening-check/
@@ -59,3 +60,6 @@ design/source-images/
 # Local Netlify folder
 .netlify
 /design/reference/admin-learning-content/
+
+# Local admin verification captures
+/design/reference/admin-sources-audit/

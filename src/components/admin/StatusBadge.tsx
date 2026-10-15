@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { STUDENT_STATUS_META, type StudentStatus } from "@/lib/constants";
+import { ADMIN_STATUS_META, STUDENT_STATUS_META, type StudentStatus } from "@/lib/constants";
 import { LEARNING_STATUS_FOREGROUND } from "@/lib/learning-content";
 
 /** Pipeline status pill: border + text in the status color, no fill (FRONTEND_RULES §5). */
@@ -10,8 +10,13 @@ const LEARNING_STATUS_META = {
   "trial-audience": { label: "Học thử", tone: "warning" },
   unconfirmed: { label: "Chưa xác nhận", tone: "muted" },
 } as const;
-export function StatusBadge({ status }: { status: StudentStatus | keyof typeof LEARNING_STATUS_META }) {
-  const { label, tone } = status in LEARNING_STATUS_META ? LEARNING_STATUS_META[status as keyof typeof LEARNING_STATUS_META] : STUDENT_STATUS_META[status as StudentStatus];
-  const learning = status in LEARNING_STATUS_META;
+export function StatusBadge({ status, context = "admin" }: {
+  status: StudentStatus | keyof typeof LEARNING_STATUS_META | keyof typeof ADMIN_STATUS_META;
+  context?: "admin" | "learning";
+}) {
+  const learning = status in LEARNING_STATUS_META && (context === "learning" || !Object.hasOwn(ADMIN_STATUS_META, status));
+  const { label, tone } = learning ? LEARNING_STATUS_META[status as keyof typeof LEARNING_STATUS_META]
+    : Object.hasOwn(ADMIN_STATUS_META, status) ? ADMIN_STATUS_META[status as keyof typeof ADMIN_STATUS_META]
+    : STUDENT_STATUS_META[status as StudentStatus];
   return <Badge variant={tone} data-learning-status={learning || undefined} style={learning ? { color: LEARNING_STATUS_FOREGROUND, borderColor: `var(--${tone === "muted" ? "muted-foreground" : tone})` } : undefined}>{label}</Badge>;
 }
