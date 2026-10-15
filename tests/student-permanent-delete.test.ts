@@ -8,6 +8,8 @@ import * as permissions from "../src/lib/auth/permissions";
 import * as deletion from "../src/lib/student-deletion";
 import * as managementSchema from "../src/lib/schemas/student-management";
 import * as code from "../src/lib/student-code";
+import * as importHelpers from "../src/lib/import-sheet";
+import type { ParsedRow } from "../src/server/import/student-sheet";
 import { loadServerModule } from "./helpers/server-module";
 import { migrateTestDatabase } from "./helpers/migrations";
 import type { Db } from "../src/server/db";
@@ -42,6 +44,7 @@ test("permanent deletion is a scoped, retained-code transaction with exhaustive 
     const actions = await loadServerModule<typeof import("../src/server/actions/student-delete")>("src/server/actions/student-delete.ts", common);
     const queries = await loadServerModule<typeof import("../src/server/queries/student-deletion")>("src/server/queries/student-deletion.ts", common);
     const lead = await loadServerModule<typeof import("../src/server/lead-record")>("src/server/lead-record.ts", common);
+    const imports = await loadServerModule<typeof import("../src/server/import/student-sheet")>("src/server/import/student-sheet.ts", { ...common, "@/lib/import-sheet": importHelpers });
     let seq = 0;
     async function fixture(extra: Partial<typeof schema.students.$inferInsert> = {}) {
       seq++;
@@ -109,7 +112,7 @@ test("permanent deletion is a scoped, retained-code transaction with exhaustive 
       await connection.insert(schema.callNotes).values({ studentId: row.id, body: "Private note" });
       await connection.insert(schema.studentStatusEvents).values({ studentId: row.id, toStatus: "new", note: "Private history" });
       await connection.insert(schema.leadSignupSessions).values({ studentId: row.id, tokenHash: row.id, expiresAt: new Date() });
-      assert.deepEqual((await queries.getStudentDeletionCheck(admin, row.id)).blockers, []);
+      assert.equal((await queries.getStudentDeletionCheck(admin, row.id)).blockers.length, 0);
       assert.equal((await actions.deleteStudentPermanently(request(row))).ok, true);
       for (const table of [schema.students, schema.callNotes, schema.studentStatusEvents, schema.leadSignupSessions]) {
         const column = table === schema.students ? schema.students.id : (table as typeof schema.callNotes).studentId;
@@ -144,10 +147,25 @@ test("permanent deletion is a scoped, retained-code transaction with exhaustive 
       assert.equal((await connection.select().from(schema.deletedStudentCodes).where(orm.eq(schema.deletedStudentCodes.code, row.code))).length, 0);
     });
 
+    await t.test("an old sheet or stale import preview cannot recreate a permanently deleted code", async () => {
+      const row = await fixture();
+      const incoming: ParsedRow = { rowNumber: 2, source: source.code, month: row.codeMonth, seq: row.seq, code: row.code,
+        fullName: row.fullName, phone: row.phone, email: row.email, status: row.status, signedUpAt: row.signedUpAt,
+        occupation: null, birthYear: null, specialty: null, hometown: null, organization: null, label: null,
+        zaloFriend: false, signupAnswers: {}, legacyRaw: {}, noteBody: null };
+      const parsed = { rows: [incoming], issues: { blank: 0, badCode: [], badPhone: [], unknownStatus: [], duplicateCode: [], badEmail: 0 } };
+      const stale = await imports.planStudentImport(parsed, db);
+      assert.equal((await actions.deleteStudentPermanently(request(row))).ok, true);
+      await assert.rejects(imports.planStudentImport(parsed, db), /mã học viên đã xóa vĩnh viễn/);
+      await assert.rejects(imports.applyStudentImport(stale, actor.id, true, db), /mã học viên đã xóa vĩnh viễn/);
+      assert.equal((await connection.select().from(schema.students).where(orm.eq(schema.students.code, row.code))).length, 0);
+    });
+
     await t.test("allocator skips burned codes after a counter reset and mock deletion never writes", async () => {
       const month = code.studentCodeMonth(new Date());
       const burnedCode = code.formatStudentCode(source.code, month, 1);
       await connection.insert(schema.deletedStudentCodes).values({ code: burnedCode, sourceId: source.id, codeMonth: month, seq: 1, deletedById: actor.id, reason: "Fixture prior deletion" });
+      await connection.insert(schema.sourceMonthCounters).values({ sourceId: source.id, codeMonth: month, nextSeq: 1 });
       const created = await db.transaction(tx => lead.insertLeadRecord(tx, source, { fullName: "Replacement", phone: "0901234567" }, {}, actor.id));
       assert.equal(created.code, code.formatStudentCode(source.code, month, 2));
       const row = await fixture();

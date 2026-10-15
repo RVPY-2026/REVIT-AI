@@ -8,7 +8,7 @@ import {
 } from "@/lib/import-sheet";
 import { audit } from "@/server/audit";
 import { db, type Db } from "@/server/db";
-import { adSources, callNotes, sourceMonthCounters, students, studentStatusEvents } from "@/server/db/schema";
+import { adSources, callNotes, deletedStudentCodes, sourceMonthCounters, students, studentStatusEvents } from "@/server/db/schema";
 
 /**
  * Registration-sheet import shared by the admin page and `pnpm db:import` (BACKEND_RULES §7).
@@ -134,6 +134,9 @@ export type ImportPlan = {
 /** Compare the sheet with the database without writing anything. */
 export async function planStudentImport(parse: ParseResult, conn: Db = db): Promise<ImportPlan> {
   const codes = parse.rows.map((row) => row.code);
+  const burned = codes.length ? await conn.select({ code: deletedStudentCodes.code }).from(deletedStudentCodes)
+    .where(inArray(deletedStudentCodes.code, codes)).limit(1) : [];
+  if (burned.length) throw new Error("Bản nhập có mã học viên đã xóa vĩnh viễn. Bạn loại mã này khỏi bản nhập để tránh tạo lại hồ sơ.");
   const found = codes.length ? await conn.select({
     id: students.id, code: students.code, fullName: students.fullName, status: students.status, email: students.email,
     occupation: students.occupation, birthYear: students.birthYear, specialty: students.specialty, hometown: students.hometown, organization: students.organization,

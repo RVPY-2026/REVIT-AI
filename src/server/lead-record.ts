@@ -41,6 +41,7 @@ export async function insertLeadRecord(
       .returning({ seq: sql<number>`${sourceMonthCounters.nextSeq} - 1` });
     if (!counter) throw new Error("Monthly code range is exhausted");
     const code = formatStudentCode(source.code, codeMonth, counter.seq);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`rvpy-student-code:${code}`}))`);
     const [burned] = await tx.select({ code: deletedStudentCodes.code }).from(deletedStudentCodes).where(eq(deletedStudentCodes.code, code)).limit(1);
     if (!burned) { allocated = { seq: counter.seq, code }; break; }
   }

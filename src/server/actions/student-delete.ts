@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { deleteStudentPermanentlySchema } from "@/lib/schemas/student-management";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -20,6 +20,9 @@ export async function deleteStudentPermanently(input: unknown): Promise<ActionRe
     ]);
     const { students, adSources, deletedStudentCodes, callNotes, studentStatusEvents, leadSignupSessions } = schema;
     const result = await db.transaction(async tx => {
+      // Match import ordering, then serialize this immutable code with allocation.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('rvpy-student-sheet-import'))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`rvpy-student-code:${data.confirmationCode}`}))`);
       const scope = and(eq(students.id, data.studentId), studentScope(user, "management"));
       const [row] = await tx.select({ id: students.id, code: students.code, sourceId: students.sourceId, codeMonth: students.codeMonth,
         seq: students.seq, status: students.status, archiveReason: students.archiveReason, archivedAt: students.archivedAt,

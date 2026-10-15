@@ -1,3 +1,4 @@
+import { migrateTestDatabase } from "./helpers/migrations";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
@@ -105,8 +106,7 @@ test("content Excel export enforces permissions and exports all filtered rows wi
 test("learning management, snapshots and student visibility on isolated Postgres", async (t) => {
   const pg = await PGlite.create(); const conn = drizzle(pg, { schema, casing: "snake_case" }); const db = conn as unknown as Db;
   try {
-    for (const name of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0006_admin_learning_content"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${name}.sql`, import.meta.url), "utf8"));
+    await migrateTestDatabase(pg);
     const [actor] = await conn.insert(schema.users).values({ email: "content-admin@example.invalid", name: "Fixture admin" }).returning();
     const [source] = await conn.insert(schema.adSources).values({ code: "R", name: "Fixture source" }).returning();
     const admin: permissions.SessionUser = { id: actor.id, email: actor.email, name: actor.name, avatarUrl: null, roles: ["admin"], sourceIds: [], studentId: null };
