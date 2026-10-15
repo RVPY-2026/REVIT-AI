@@ -21,17 +21,21 @@ test("signup ownership, renewal, shared limits and CRM conflict regressions on i
   const conn = drizzle(pg, { schema, casing: "snake_case" });
   const db = conn as unknown as Db;
   try {
-    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection"])
+    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
       await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
     await conn.insert(schema.adSources).values({ code: "R", name: "Fixture source" });
     const [actor] = await conn.insert(schema.users).values({ email: "review-admin@example.invalid", name: "Fixture admin" }).returning();
     const admin: permissions.SessionUser = { id: actor.id, email: actor.email, name: actor.name, avatarUrl: null,
       roles: ["admin"], sourceIds: [], studentId: null };
     const env = { ZALO_BOT_TOKEN: "fake-bot", ZALO_BOT_WEBHOOK_SECRET: "fake-webhook", SIGNUP_RATE_LIMIT_SECRET: "x".repeat(32), TURNSTILE_SECRET_KEY: "fake-captcha" };
-    const common = { "drizzle-orm": orm, "@/server/db": { db }, "@/server/db/schema": schema,
+    const common: Record<string, unknown> = { "drizzle-orm": orm, "@/server/db": { db }, "@/server/db/schema": schema,
       "@/server/env": { serverEnv: env }, "@/lib/auth/permissions": permissions };
     const audit = await loadServerModule<typeof import("../src/server/audit")>("src/server/audit.ts", common);
     const scope = await loadServerModule<typeof import("../src/server/auth/scope")>("src/server/auth/scope.ts", common);
+    const phones = await loadServerModule<typeof import("../src/server/phone-matches")>("src/server/phone-matches.ts", {
+      ...common, "@/server/auth/scope": scope, "@/lib/schemas/lead": leadSchema, "@/lib/phone": await import("../src/lib/phone"),
+    });
+    common["@/server/phone-matches"] = phones;
     const sessions = await loadServerModule<typeof import("../src/server/signup-session")>("src/server/signup-session.ts", {
       ...common, "@/server/zalo/link-code": linkCode,
     });
@@ -155,6 +159,21 @@ test("signup ownership, renewal, shared limits and CRM conflict regressions on i
       await imports.applyStudentImport(stale, admin.id, true, db);
       const notes = await conn.select().from(schema.callNotes).where(orm.eq(schema.callNotes.studentId, student.id));
       assert.equal(notes.length, 1);
+    });
+
+    await t.test("imports recognize archived codes without modifying fields, statuses or notes", async () => {
+      const imports = await loadServerModule<typeof import("../src/server/import/student-sheet")>("src/server/import/student-sheet.ts", {
+        ...common, "@/server/audit": audit, "@/lib/import-sheet": importHelpers,
+      });
+      const [student] = await conn.select().from(schema.students).where(orm.eq(schema.students.code, "R9801901"));
+      await conn.update(schema.students).set({ archivedAt: new Date(), archiveReason: "test" }).where(orm.eq(schema.students.id, student.id));
+      const row: ParsedRow = { rowNumber: 2, source: "R", month: "9801", seq: 901, code: student.code, fullName: "Archived sheet change",
+        phone: "0907654321", email: null, status: "new", signedUpAt: student.signedUpAt, occupation: null, birthYear: null,
+        specialty: "Sheet change", hometown: null, organization: null, label: null, zaloFriend: false, signupAnswers: {}, legacyRaw: {}, noteBody: "Should not be appended" };
+      const plan = await imports.planStudentImport({ rows: [row], issues: { blank: 0, badCode: [], badPhone: [], unknownStatus: [], duplicateCode: [], badEmail: 0 } }, db);
+      assert.equal(plan.newRows.length, 0); assert.equal(plan.changes.length, 0);
+      const result = await imports.applyStudentImport(plan, admin.id, true, db);
+      assert.equal(result.updated, 0); assert.equal(result.notesAdded, 0); assert.equal(result.inserted, 0);
     });
 
     await t.test("outbox retries due items, preserves chat order, respects budget and retains blocked messages", async () => {

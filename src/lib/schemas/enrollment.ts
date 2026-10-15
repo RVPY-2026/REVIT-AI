@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-export const kanbanStageSchema = z.object({
-  studentId: z.uuid(),
-  status: z.enum(["new", "consulting", "dropped"]),
-});
 export const trialEnrollmentSchema = z.object({ studentId: z.uuid() });
 export const formalEnrollmentSchema = trialEnrollmentSchema.extend({
   agreedFeeVnd: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),

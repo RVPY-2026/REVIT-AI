@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { normalizeStudentField, studentChangeKey, updateStudentFieldSchema, updateStudentProfileSchema } from "@/lib/schemas/student-field";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -10,6 +10,7 @@ import { audit } from "@/server/audit";
 import { db } from "@/server/db";
 import { students } from "@/server/db/schema";
 import type { ActionResult } from "@/server/result";
+import { DuplicatePhoneError, requirePhoneAcknowledgment } from "@/server/phone-matches";
 
 /** Patch a single allowed field, preserving edits made in other cells. */
 export async function updateStudentField(input: unknown): Promise<ActionResult<{ value: string }>> {
@@ -20,7 +21,7 @@ export async function updateStudentField(input: unknown): Promise<ActionResult<{
   const data = parsed.data;
   try {
     const result = await db.transaction(async (tx) => {
-      const scope = and(eq(students.id, data.studentId), studentScope(user, "management"));
+      const scope = and(eq(students.id, data.studentId), studentScope(user, "management"), isNull(students.archivedAt));
       const [row] = await tx.select({ id: students.id, fullName: students.fullName, phone: students.phone,
         email: students.email, occupation: students.occupation, birthYear: students.birthYear,
         specialty: students.specialty, hometown: students.hometown, organization: students.organization,
@@ -34,13 +35,14 @@ export async function updateStudentField(input: unknown): Promise<ActionResult<{
       if (String(before ?? "") !== data.expectedValue) return { ok: false as const, error: "Thông tin đã được cập nhật ở nơi khác. Bạn tải lại trang trước khi sửa." };
       const value = normalizeStudentField(data.field, data.value);
       if (String(value ?? "") === String(before ?? "")) return { ok: true as const, data: { value: String(value ?? "") } };
+      if (data.field === "phone") await requirePhoneAcknowledgment(tx, user, String(value), data.duplicateAcknowledged, row.id);
       const patch = data.field === "signupAnswer"
         ? { signupAnswers: { ...row.signupAnswers, [data.answerKey!]: String(value ?? "") } }
         : { [data.field]: value };
       const [updated] = await tx.update(students).set(patch).where(scope).returning({ id: students.id });
       if (!updated) throw new Error("Student scope changed during field edit");
       await audit(tx, { actorId: user.id, action: "student.field_updated", entity: "students", entityId: row.id,
-        data: { field: data.field, answerKey: data.answerKey, before, after: value } });
+        data: { field: data.field, answerKey: data.answerKey, before, after: value, ...(data.field === "phone" && data.duplicateAcknowledged ? { duplicateAcknowledged: true } : {}) } });
       return { ok: true as const, data: { value: String(value ?? "") } };
     });
     if (result.ok) {
@@ -49,7 +51,8 @@ export async function updateStudentField(input: unknown): Promise<ActionResult<{
       revalidatePath("/quan-tri");
     }
     return result;
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplicatePhoneError) return { ok: false, error: error.message };
     return { ok: false, error: "Chưa thể lưu thông tin. Bạn thử lại sau nhé." };
   }
 }
@@ -69,7 +72,7 @@ export async function updateStudentProfile(input: unknown): Promise<ActionResult
   if (Object.keys(fieldErrors).length) return { ok: false, error: "Có thông tin chưa hợp lệ. Bạn kiểm tra các ô báo đỏ.", fieldErrors };
   try {
     const result = await db.transaction(async (tx) => {
-      const scope = and(eq(students.id, studentId), studentScope(user, "management"));
+      const scope = and(eq(students.id, studentId), studentScope(user, "management"), isNull(students.archivedAt));
       const [row] = await tx.select({ id: students.id, fullName: students.fullName, phone: students.phone,
         email: students.email, occupation: students.occupation, birthYear: students.birthYear,
         specialty: students.specialty, hometown: students.hometown, organization: students.organization,
@@ -88,6 +91,7 @@ export async function updateStudentProfile(input: unknown): Promise<ActionResult
         const value = normalizeStudentField(change.field, change.value);
         values[studentChangeKey(change)] = String(value ?? "");
         if (String(value ?? "") === String(before ?? "")) continue;
+        if (change.field === "phone") await requirePhoneAcknowledgment(tx, user, String(value), batch.data.duplicateAcknowledged, row.id);
         if (isAnswer) answers[change.answerKey!] = String(value ?? "");
         else patch[change.field] = value;
         audits.push({ field: change.field, answerKey: change.answerKey, before, after: value });
@@ -97,7 +101,7 @@ export async function updateStudentProfile(input: unknown): Promise<ActionResult
         const [updated] = await tx.update(students).set(patch).where(scope).returning({ id: students.id });
         if (!updated) throw new Error("Student scope changed during profile edit");
         for (const item of audits) {
-          await audit(tx, { actorId: user.id, action: "student.field_updated", entity: "students", entityId: row.id, data: item });
+          await audit(tx, { actorId: user.id, action: "student.field_updated", entity: "students", entityId: row.id, data: { ...item, ...(item.field === "phone" && batch.data.duplicateAcknowledged ? { duplicateAcknowledged: true } : {}) } });
         }
       }
       return { ok: true as const, data: { values } };
@@ -108,7 +112,8 @@ export async function updateStudentProfile(input: unknown): Promise<ActionResult
       revalidatePath("/quan-tri");
     }
     return result;
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplicatePhoneError) return { ok: false, error: error.message };
     return { ok: false, error: "Chưa thể lưu thông tin. Bạn thử lại sau nhé." };
   }
 }

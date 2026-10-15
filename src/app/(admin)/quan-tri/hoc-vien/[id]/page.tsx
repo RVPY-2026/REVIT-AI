@@ -1,3 +1,4 @@
+import { StudentLearningProgress } from "@/components/admin/StudentLearningProgress";
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import Link from "next/link"
@@ -8,12 +9,17 @@ import { ClipboardButton } from "@/components/admin/ClipboardButton"
 import { StatusCell } from "@/components/admin/StatusCell"
 import { StudentProfileForm, type ProfileFieldSpec } from "@/components/admin/StudentProfileForm"
 import { StudentOnboardingPanel } from "@/components/admin/StudentOnboardingPanel"
+import { StudentManagementActions } from "@/components/admin/StudentManagementActions"
+import { NoteBodyEditor } from "@/components/admin/NoteBodyEditor"
+import { RecordSentMessage } from "@/components/admin/RecordSentMessage"
+import { StudentContactDialog } from "@/components/admin/StudentContactDialog"
+import { ARCHIVE_REASON_LABELS, CONTACT_CHANNEL_LABELS, CONTACT_OUTCOME_LABELS, DROPPED_REASON_LABELS } from "@/lib/crm"
 import { getStudentOnboarding } from "@/lib/api/student-onboarding"
 import type { SessionUser } from "@/lib/auth/permissions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { getStudent } from "@/lib/api/students"
+import { getStudent, getStudentSources } from "@/lib/api/students"
 import { getStudentMessages } from "@/lib/api/templates"
 import { can } from "@/lib/auth/permissions"
 import { STUDENT_STATUS_META, zaloChatUrl } from "@/lib/constants"
@@ -37,13 +43,14 @@ export default function StudentProfilePage({ params }: { params: Promise<{ id: s
 async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await requirePermission("students.view")
-  const editable = can(user, "students.edit")
   const templatesAllowed = can(user, "templates.view")
-  const [student, messages] = await Promise.all([
+  const [student, messages, sources] = await Promise.all([
     getStudent(id),
     templatesAllowed ? getStudentMessages(id) : Promise.resolve([]),
+    can(user, "students.transfer") ? getStudentSources() : Promise.resolve([]),
   ])
   if (!student) notFound()
+  const editable = can(user, "students.edit") && !student.archivedAt
   const suggested = messages.find((message) => message.forStatus === student.status) ?? messages.find((message) => message.forStatus === null)
   const extraMessages = messages.filter((message) => message.id !== suggested?.id)
   const text = (value: string | number | null) => String(value ?? "")
@@ -74,23 +81,26 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-heading text-[28px] font-light text-foreground">{student.fullName}</h1>
-            <StatusCell studentId={id} fullName={student.fullName} status={student.status} editable={editable} />
+            <StatusCell studentId={id} fullName={student.fullName} status={student.status} droppedReason={student.droppedReason} droppedNote={student.droppedNote} editable={editable} />
           </div>
           <p className="mt-1 font-mono text-sm text-muted-foreground">{student.code}</p>
           <p className="mt-2 text-sm text-muted-foreground">Nguồn {student.sourceCode} · {student.sourceName} · đăng ký {formatDate(student.signedUpAt)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm"><a href={`tel:${student.phone}`}><Phone aria-hidden="true" strokeWidth={1.75} />Gọi điện</a></Button>
-          <Button asChild variant="outline" size="sm"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer">Mở Zalo</a></Button>
+          {editable && <StudentContactDialog student={student} />}
+          {can(user, "students.archive") && <StudentManagementActions student={student} sources={sources} />}
+          <Button asChild variant="outline" size="compact"><a href={`tel:${student.phone}`}><Phone aria-hidden="true" strokeWidth={1.75} />Gọi điện</a></Button>
+          <Button asChild variant="outline" size="compact"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer">Mở Zalo</a></Button>
         </div>
       </div>
+      {student.archivedAt && <p role="status" className="mt-4 rounded-xl border border-warning p-3 text-sm text-warning">Đã lưu trữ · {student.archiveReason ? ARCHIVE_REASON_LABELS[student.archiveReason] : ""}. Bạn khôi phục hồ sơ trước khi sửa hoặc ghi chú.</p>}
 
       <div className="mt-7 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <div className="grid min-w-0 gap-4">
-          <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
+          {!student.archivedAt && <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>
             <StudentLearning studentId={id} contactEmail={student.email} user={user} />
-          </Suspense>
-          <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}>{await import("@/components/admin/StudentLearningProgress").then(({ StudentLearningProgress }) => <StudentLearningProgress studentId={id} />)}</Suspense>
+          </Suspense>}
+          {!student.archivedAt && <Suspense fallback={<Skeleton className="h-64 rounded-2xl" />}><StudentLearningProgress studentId={id} /></Suspense>}
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><UserRound aria-hidden="true" size={18} strokeWidth={1.75} />Thông tin đăng ký</CardTitle></CardHeader>
             <CardContent>
@@ -107,7 +117,8 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
                     <li key={event.id} className="relative grid grid-cols-[16px_1fr] gap-x-3 pb-5 last:pb-0">
                       <span className="relative flex justify-center"><span className="mt-1.5 size-2.5 rounded-full border border-primary bg-primary-soft" />{index < student.timeline.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-border" />}</span>
                       <div>
-                        <p className="text-sm font-medium">{event.fromStatus ? `${STUDENT_STATUS_META[event.fromStatus].label} → ` : ""}{STUDENT_STATUS_META[event.toStatus].label}</p>
+                        <p className="text-sm font-medium">{event.kind === "archive" ? `Lưu trữ hồ sơ · ${ARCHIVE_REASON_LABELS[event.data?.reason as keyof typeof ARCHIVE_REASON_LABELS] ?? ""}` : event.kind === "restore" ? "Khôi phục hồ sơ" : event.kind === "source_transfer" ? `Chuyển nguồn · ${sources.find(source => source.id === event.data?.before)?.code ?? "Nguồn trước"} → ${sources.find(source => source.id === event.data?.after)?.code ?? student.sourceCode}` : <>{event.fromStatus ? `${STUDENT_STATUS_META[event.fromStatus].label} → ` : ""}{STUDENT_STATUS_META[event.toStatus].label}</>}</p>
+                        {event.reason && <p className="mt-1 text-sm text-muted-foreground">{DROPPED_REASON_LABELS[event.reason]}</p>}
                         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{formatDateTime(event.createdAt)}</p>
                         {event.note && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{event.note}</p>}
                       </div>
@@ -127,13 +138,13 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
                     <li key={note.id} className="rounded-xl border border-border bg-background-2/60 p-3.5">
                       <p className="whitespace-pre-wrap text-sm leading-relaxed">{note.body}</p>
                       <p className="mt-2 text-xs text-muted-foreground">{note.authorName ?? "Nhân viên"} · {formatDateTime(note.createdAt)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{CONTACT_CHANNEL_LABELS[note.channel ?? "call"]}{note.outcome && ` · ${CONTACT_OUTCOME_LABELS[note.outcome]}`}{note.editedAt && " · đã sửa"}{note.nextActionAt && ` · Hẹn ${formatDateTime(note.nextActionAt)}`}</p>
+                      {editable && note.canEdit && <NoteBodyEditor studentId={id} noteId={note.id} body={note.body} />}
                     </li>
                   ))}
                 </ol>
               ) : <p className="text-sm text-muted-foreground">Chưa có ghi chú. Thêm nội dung sau cuộc gọi để đội ngũ theo dõi tiếp.</p>}
-              {editable && <div className="border-t border-border pt-4">{USE_MOCK ? (
-                <p className="rounded-xl border border-border bg-background-2 p-3 text-sm text-muted-foreground">Ghi chú chưa khả dụng trong chế độ xem thử.</p>
-              ) : <CallNoteForm studentId={student.id} />}</div>}
+              {editable && <div className="border-t border-border pt-4"><CallNoteForm studentId={student.id} preview={USE_MOCK} /></div>}
             </CardContent>
           </Card>
         </div>
@@ -143,12 +154,12 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
             <CardHeader><CardTitle>Tin nhắn tiếp theo</CardTitle></CardHeader>
             <CardContent className="grid gap-4">
               {suggested ? (
-                <MessageCard title={suggested.title} body={suggested.body} suggested />
+                <MessageCard studentId={id} editable={editable} title={suggested.title} body={suggested.body} suggested />
               ) : (
                 <p className="text-sm text-muted-foreground">Chưa có mẫu tin phù hợp với trạng thái hiện tại.</p>
               )}
-              {extraMessages.map((message) => <MessageCard key={message.id} title={message.title} body={message.body} />)}
-              <p className="text-xs text-muted-foreground">Tin nhắn chỉ được sao chép. Bạn tự gửi cho học viên qua Zalo.</p>
+              {extraMessages.map((message) => <MessageCard key={message.id} studentId={id} editable={editable} title={message.title} body={message.body} />)}
+              <p className="text-xs text-muted-foreground">Bạn tự gửi qua Zalo, rồi chọn “Đã gửi cho học viên” để ghi nhận. Sao chép không tạo ghi chú.</p>
             </CardContent>
           </Card>
           <Card size="sm">
@@ -191,12 +202,12 @@ function answerLabel(key: string) {
   return Object.hasOwn(labels, key) ? labels[key] : "Thông tin bổ sung"
 }
 
-function MessageCard({ title, body, suggested = false }: { title: string; body: string; suggested?: boolean }) {
+function MessageCard({ studentId, editable, title, body, suggested = false }: { studentId: string; editable: boolean; title: string; body: string; suggested?: boolean }) {
   return (
     <div className={`grid gap-2 rounded-xl border p-3.5 ${suggested ? "border-primary/40 bg-primary-soft/40" : "border-border"}`}>
       <h3 className="text-sm font-medium">{title}{suggested && <span className="ml-2 text-xs font-normal text-primary">Gợi ý theo trạng thái</span>}</h3>
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{body}</p>
-      <div><ClipboardButton text={body} label="Sao chép tin nhắn" className="px-2" /></div>
+      <div className="flex flex-wrap gap-2"><ClipboardButton text={body} label="Sao chép tin nhắn" className="px-2" />{editable && <RecordSentMessage studentId={studentId} title={title} />}</div>
     </div>
   )
 }

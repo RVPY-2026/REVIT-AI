@@ -9,7 +9,7 @@ CREATE TABLE "learning_uploads" (
 	"status" text DEFAULT 'pending' NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "learning_uploads_objectPath_unique" UNIQUE("object_path"),
-	CONSTRAINT "learning_uploads_size" CHECK ("learning_uploads"."size" > 0 AND "learning_uploads"."size" <= 104857600),
+	CONSTRAINT "learning_uploads_size" CHECK ("learning_uploads"."size" > 0 AND "learning_uploads"."size" <= 50000000),
 	CONSTRAINT "learning_uploads_mode" CHECK ("learning_uploads"."mode" IN ('view', 'download')),
 	CONSTRAINT "learning_uploads_status" CHECK ("learning_uploads"."status" IN ('pending', 'uploaded', 'consumed', 'cancelled'))
 );

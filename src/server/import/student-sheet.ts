@@ -137,6 +137,7 @@ export async function planStudentImport(parse: ParseResult, conn: Db = db): Prom
   const found = codes.length ? await conn.select({
     id: students.id, code: students.code, fullName: students.fullName, status: students.status, email: students.email,
     occupation: students.occupation, birthYear: students.birthYear, specialty: students.specialty, hometown: students.hometown, organization: students.organization,
+    archivedAt: students.archivedAt,
   }).from(students).where(inArray(students.code, codes)) : [];
   const byCode = new Map(found.map((row) => [row.code, row]));
   const ids = found.map((row) => row.id);
@@ -156,6 +157,8 @@ export async function planStudentImport(parse: ParseResult, conn: Db = db): Prom
   for (const row of parse.rows) {
     const current = byCode.get(row.code);
     if (!current) continue;
+    // Keep the immutable code recognized, but archived profiles cannot be patched or noted.
+    if (current.archivedAt) continue;
     const fill: ExistingChange["fill"] = {};
     for (const field of FILL_FIELDS) if ((current[field] === null || current[field] === "") && row[field] !== null) fill[field] = row[field]!;
     let statusChange: ExistingChange["statusChange"] = null;

@@ -1,5 +1,11 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 import { STUDENT_STATUSES } from "../../../lib/constants";
+import { ARCHIVE_REASONS, DROPPED_REASONS, CONTACT_CHANNELS, CONTACT_OUTCOMES } from "../../../lib/crm";
+
+export const archiveReasonEnum = pgEnum("archive_reason", ARCHIVE_REASONS);
+export const droppedReasonEnum = pgEnum("dropped_reason", DROPPED_REASONS);
+export const contactChannelEnum = pgEnum("contact_channel", CONTACT_CHANNELS);
+export const contactOutcomeEnum = pgEnum("contact_outcome", CONTACT_OUTCOMES);
 
 export const roleEnum = pgEnum("role", ["admin", "sale", "student", "user"]);
 

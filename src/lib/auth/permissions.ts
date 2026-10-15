@@ -20,6 +20,8 @@ const PERMISSIONS = {
   "students.view": ["admin", "sale"], // sale: own sources only (scoped in queries)
   "students.edit": ["admin", "sale"],
   "students.create": ["admin", "sale"], // sale: active sources they own only
+  "students.archive": ["admin"],
+  "students.transfer": ["admin"],
   "enrollments.trial": ["admin", "sale"],
   "students.activate": ["admin"],
   "students.learning.edit": ["admin", "sale"],

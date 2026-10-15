@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     ".next-signup-check/**",
     ".next-crm-check/**",
+    ".next-crm-hardening-check/**",
     ".next-filter-preview/**",
     ".next-onboarding-preview/**",
     ".next-learning/**",

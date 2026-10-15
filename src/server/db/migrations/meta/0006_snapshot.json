@@ -1,6 +1,6 @@
 {
-  "id": "3bd4b354-85ab-402e-bedc-a58d07347835",
-  "prevId": "e90fd8a6-0294-4ca9-9e61-30b302088f72",
+  "id": "8944ebe6-59b8-4f30-8257-228be5689978",
+  "prevId": "8c2d3015-8949-43be-ba71-4e6d50e6d55c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -313,6 +313,33 @@
           "primaryKey": false,
           "notNull": true
         },
+        "channel": {
+          "name": "channel",
+          "type": "contact_channel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'call'"
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "contact_outcome",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action_at": {
+          "name": "next_action_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "edited_at": {
+          "name": "edited_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "author_id": {
           "name": "author_id",
           "type": "uuid",
@@ -415,6 +442,26 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reason": {
+          "name": "reason",
+          "type": "dropped_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'status'"
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "changed_by_id": {
           "name": "changed_by_id",
           "type": "uuid",
@@ -477,7 +524,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "student_events_kind": {
+          "name": "student_events_kind",
+          "value": "\"student_status_events\".\"kind\" IN ('status', 'archive', 'restore', 'source_transfer')"
+        }
+      },
       "isRLSEnabled": true
     },
     "public.students": {
@@ -633,6 +685,25 @@
           "notNull": true,
           "default": "'new'"
         },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archive_reason": {
+          "name": "archive_reason",
+          "type": "archive_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived_by_id": {
+          "name": "archived_by_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "referred_by_id": {
           "name": "referred_by_id",
           "type": "uuid",
@@ -668,6 +739,21 @@
         }
       },
       "indexes": {
+        "students_archived_at_index": {
+          "name": "students_archived_at_index",
+          "columns": [
+            {
+              "expression": "archived_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "students_source_id_signed_up_at_index": {
           "name": "students_source_id_signed_up_at_index",
           "columns": [
@@ -764,6 +850,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "students_archived_by_id_users_id_fk": {
+          "name": "students_archived_by_id_users_id_fk",
+          "tableFrom": "students",
+          "tableTo": "users",
+          "columnsFrom": [
+            "archived_by_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "students_referred_by_id_students_id_fk": {
           "name": "students_referred_by_id_students_id_fk",
           "tableFrom": "students",
@@ -806,19 +905,14 @@
           "columns": [
             "user_id"
           ]
-        },
-        "students_sourceId_codeMonth_seq_unique": {
-          "name": "students_sourceId_codeMonth_seq_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "source_id",
-            "code_month",
-            "seq"
-          ]
         }
       },
       "policies": {},
       "checkConstraints": {
+        "students_archive_state": {
+          "name": "students_archive_state",
+          "value": "(\"students\".\"archived_at\" IS NULL AND \"students\".\"archive_reason\" IS NULL) OR (\"students\".\"archived_at\" IS NOT NULL AND \"students\".\"archive_reason\" IS NOT NULL)"
+        },
         "students_code_format": {
           "name": "students_code_format",
           "value": "\"students\".\"code\" ~ '^[A-Z][0-9]{2}(0[1-9]|1[0-2])[0-9]{3}$'"
@@ -2451,7 +2545,7 @@
       "checkConstraints": {
         "learning_uploads_size": {
           "name": "learning_uploads_size",
-          "value": "\"learning_uploads\".\"size\" > 0 AND \"learning_uploads\".\"size\" <= 104857600"
+          "value": "\"learning_uploads\".\"size\" > 0 AND \"learning_uploads\".\"size\" <= 50000000"
         },
         "learning_uploads_mode": {
           "name": "learning_uploads_mode",
@@ -2466,6 +2560,49 @@
     }
   },
   "enums": {
+    "public.archive_reason": {
+      "name": "archive_reason",
+      "schema": "public",
+      "values": [
+        "spam",
+        "duplicate",
+        "test",
+        "other"
+      ]
+    },
+    "public.contact_channel": {
+      "name": "contact_channel",
+      "schema": "public",
+      "values": [
+        "call",
+        "zalo",
+        "meeting",
+        "other"
+      ]
+    },
+    "public.contact_outcome": {
+      "name": "contact_outcome",
+      "schema": "public",
+      "values": [
+        "no_answer",
+        "interested",
+        "thinking",
+        "declined",
+        "other"
+      ]
+    },
+    "public.dropped_reason": {
+      "name": "dropped_reason",
+      "schema": "public",
+      "values": [
+        "price",
+        "time",
+        "no_contact",
+        "other_course",
+        "not_interested",
+        "other"
+      ]
+    },
     "public.enrollment_kind": {
       "name": "enrollment_kind",
       "schema": "public",

@@ -17,6 +17,8 @@
 /.next/
 /.next-signup-check/
 /.next-crm-check/
+/.next-crm-hardening-check/
+/.crm-*-output.txt
 /.next-filter-preview/
 /.next-onboarding-preview/
 /.next-learning/
@@ -56,3 +58,4 @@ design/source-images/
 
 # Local Netlify folder
 .netlify
+/design/reference/admin-learning-content/

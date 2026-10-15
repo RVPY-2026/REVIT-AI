@@ -16,11 +16,12 @@ export class DuplicateSignupError extends Error {}
 export async function insertLeadRecord(
   tx: Tx, source: { id: string; code: string }, fields: LeadFields,
   answers: Record<string, string>, actorId: string | null, referredById: string | null = null,
+  duplicateAcknowledged = false,
 ) {
   const signedUpAt = new Date();
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${fields.phone}))`);
   // Serialize public retries for this normalized phone before consuming a code.
   if (actorId === null) {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${fields.phone}))`);
     const [recent] = await tx.select({ id: students.id, code: students.code }).from(students)
       .where(and(eq(students.phone, fields.phone), gte(students.signedUpAt, new Date(signedUpAt.getTime() - 5 * 60_000))))
       .orderBy(desc(students.signedUpAt)).limit(1);
@@ -46,6 +47,7 @@ export async function insertLeadRecord(
   await audit(tx, {
     actorId, action: actorId ? "student.created_manually" : "student.signed_up",
     entity: "students", entityId: row.id,
+    data: actorId && duplicateAcknowledged ? { duplicateAcknowledged: true } : undefined,
   });
   return row;
 }

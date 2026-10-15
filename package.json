@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --conditions=react-server --test --test-concurrency=1 tests/*.test.ts",
+    "test": "node --wasm-num-compilation-tasks=2 --import tsx --conditions=react-server --test --test-concurrency=1 tests/*.test.ts",
     "zalo:check": "tsx --conditions=react-server scripts/zalo-bot-test.ts --check",
     "zalo:test": "tsx --conditions=react-server scripts/zalo-bot-test.ts",
     "zalo:webhook:set": "tsx --conditions=react-server scripts/set-zalo-webhook.ts",
