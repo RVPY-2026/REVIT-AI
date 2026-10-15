@@ -55,3 +55,6 @@ design/source-images/
 
 # Local Netlify folder
 .netlify
+
+# Local admin verification captures
+/design/reference/admin-sources-audit/
