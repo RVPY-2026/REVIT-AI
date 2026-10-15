@@ -1,6 +1,7 @@
 export const VIEW_LIMIT = 25 * 1024 * 1024;
 export const DOWNLOAD_LIMIT = 100 * 1024 * 1024;
-export const RESOURCE_BUCKET = "learning-resources";
+export const LEARNING_PRIMARY_BACKGROUND = "var(--primary-deep)";
+export const LEARNING_STATUS_FOREGROUND = "var(--foreground)";
 const types: Record<string, readonly string[]> = {
   pdf: ["application/pdf"], png: ["image/png"], jpg: ["image/jpeg"], jpeg: ["image/jpeg"], webp: ["image/webp"],
   exe: ["application/vnd.microsoft.portable-executable", "application/x-msdownload", "application/octet-stream"],
@@ -15,12 +16,6 @@ export function validateUpload(file: { filename: string; contentType: string; si
   const limit = file.mode === "view" ? VIEW_LIMIT : DOWNLOAD_LIMIT;
   if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > limit) return `Bạn chọn tệp lớn hơn 0 và không quá ${limit / 1024 / 1024} MB.`;
   return null;
-}
-export function resourceObjectPath(filename: string, id: string): string {
-  const basename = filename.replaceAll("\\", "/").split("/").pop() ?? "file";
-  let safe = basename.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]/g, "-").slice(-120).replace(/^\.+/, "") || "file";
-  if (!safe.includes(".") && basename.includes(".")) safe = `file.${basename.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin"}`;
-  return `resources/${id}/${safe}`;
 }
 export function normalizeYoutube(value: string): string | null {
   try {

@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { serverEnv } from "@/server/env";
-import { RESOURCE_BUCKET } from "@/lib/learning-content";
+import { RESOURCE_BUCKET } from "@/server/learning-upload-config";
 
 export function learningStorage() {
   if (!serverEnv.SUPABASE_SECRET_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error("Storage is not configured");

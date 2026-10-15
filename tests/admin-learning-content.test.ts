@@ -7,6 +7,7 @@ import * as orm from "drizzle-orm";
 import * as schema from "../src/server/db/schema";
 import * as permissions from "../src/lib/auth/permissions";
 import * as contentRules from "../src/lib/learning-content";
+import * as uploadConfig from "../src/server/learning-upload-config";
 import * as contentSchema from "../src/lib/schemas/learning-content";
 import * as onboardingSchema from "../src/lib/schemas/student-onboarding";
 import * as studentRules from "../src/lib/student-learning";
@@ -28,6 +29,22 @@ test("upload allowlists require matching MIME, extension, mode and actual size l
   }
   assert.equal(contentRules.validateUpload({ filename: "setup.zip", contentType: "application/zip", size: 1, mode: "download" }), null);
 });
+test("learning action and status text meets AA using the existing theme tokens", async () => {
+  const css = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
+  const rgb = (hex: string) => hex.replace("#", "").match(/../g)!.map((part) => parseInt(part, 16) / 255);
+  const luminance = (color: number[]) => color.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  const contrast = (a: number[], b: number[]) => { const values = [luminance(a), luminance(b)].sort((x, y) => y - x); return (values[0] + 0.05) / (values[1] + 0.05); };
+  for (const selector of [":root", ".dark"]) {
+    const block = css.slice(css.indexOf(`${selector} {`)).split("}")[0];
+    const token = (name: string) => block.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`))![1];
+    const primaryToken = contentRules.LEARNING_PRIMARY_BACKGROUND.match(/--([a-z-]+)/)![1];
+    const statusToken = contentRules.LEARNING_STATUS_FOREGROUND.match(/--([a-z-]+)/)![1];
+    assert.ok(contrast(rgb(token("primary-foreground")), rgb(token(primaryToken))) >= 4.5);
+    const background = rgb(token("background"));
+    const card = selector === ":root" ? [1, 1, 1] : background.map((value) => 0.05 + 0.95 * value);
+    assert.ok(contrast(rgb(token(statusToken)), card) >= 4.5);
+  }
+});
 test("YouTube URLs normalize to the schema's embed provider, reject other origins", () => {
   for (const url of ["https://youtu.be/aqz-KE-bpKQ?t=2", "https://www.youtube.com/watch?v=aqz-KE-bpKQ&list=abc", "https://m.youtube.com/shorts/aqz-KE-bpKQ", "https://youtube.com/live/aqz-KE-bpKQ", "https://youtube-nocookie.com/embed/aqz-KE-bpKQ"])
     assert.equal(contentRules.normalizeYoutube(url), "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ");
@@ -35,8 +52,8 @@ test("YouTube URLs normalize to the schema's embed provider, reject other origin
     assert.equal(contentRules.normalizeYoutube(url), null);
 });
 test("upload paths derive from server UUID and sanitized basename; injected paths are rejected", () => {
-  assert.equal(contentRules.resourceObjectPath("../../evil\\guide.pdf", "server-id"), "resources/server-id/guide.pdf");
-  assert.equal(contentRules.resourceObjectPath("..pdf", "server-id"), "resources/server-id/file.pdf");
+  assert.equal(uploadConfig.resourceObjectPath("../../evil\\guide.pdf", "server-id"), "resources/server-id/guide.pdf");
+  assert.equal(uploadConfig.resourceObjectPath("..pdf", "server-id"), "resources/server-id/file.pdf");
   assert.equal(contentSchema.uploadSchema.safeParse({ filename: "a.pdf", contentType: "application/pdf", size: 1, mode: "view", objectPath: "victim" }).success, false);
   assert.equal(contentSchema.bulkConfirmSchema.safeParse({ studentId: "00000000-0000-4000-8000-000000000001", lessons: Array.from({ length: 31 }, () => ({ planLessonId: "00000000-0000-4000-8000-000000000002", expectedCompletedAt: null, expectedReportedAt: null })) }).success, false);
 });
@@ -49,7 +66,7 @@ test("upload streaming counts actual bytes and rejects public storage", async (t
     assert.equal(total, 3); return new Response("", { status: 200 });
   });
   const storageModule = await loadServerModule<typeof import("../src/server/learning-storage")>("src/server/learning-storage.ts", {
-    "@supabase/supabase-js": { createClient: () => ({ storage }) }, "@/server/env": { serverEnv: { SUPABASE_SECRET_KEY: "fixture-secret" } }, "@/lib/learning-content": contentRules,
+    "@supabase/supabase-js": { createClient: () => ({ storage }) }, "@/server/env": { serverEnv: { SUPABASE_SECRET_KEY: "fixture-secret" } }, "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig,
   }, { NEXT_PUBLIC_SUPABASE_URL: "https://storage.example.invalid" });
   const bytes = (size: number) => new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(size)); c.close(); } });
   const upload = (size: number) => storageModule.streamLearningObject("fixture.pdf", "application/pdf", 3, bytes(size), new AbortController().signal);
@@ -67,7 +84,7 @@ test("content Excel export enforces permissions and exports all filtered rows wi
   const requested: string[] = [];
   const exportRoute = await loadServerModule<typeof import("../src/app/api/export/learning-content/route")>("src/app/api/export/learning-content/route.ts", {
     "@/lib/api/learning-content": { getLearningContent: async () => ({ lessons: mockManagedLessons, resources: mockManagedResources }) },
-    "@/lib/learning-content": contentRules, "@/lib/student-learning": studentRules,
+    "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig, "@/lib/student-learning": studentRules,
     "@/server/auth/session": { requirePermission: async (permission: string) => { requested.push(permission); } },
   });
   const response = await exportRoute.GET(new Request("https://example.invalid/api/export/learning-content?domain=resources&audience=trial"));
@@ -79,7 +96,7 @@ test("content Excel export enforces permissions and exports all filtered rows wi
   assert.equal((await exportRoute.GET(new Request("https://example.invalid/api/export/learning-content?domain=resources&lesson=bad"))).status, 400);
   const denied = await loadServerModule<typeof import("../src/app/api/export/learning-content/route")>("src/app/api/export/learning-content/route.ts", {
     "@/lib/api/learning-content": { getLearningContent: async () => { throw new Error("Should not query"); } },
-    "@/lib/learning-content": contentRules, "@/lib/student-learning": studentRules,
+    "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig, "@/lib/student-learning": studentRules,
     "@/server/auth/session": { requirePermission: async () => { throw new Error("Forbidden"); } },
   });
   await assert.rejects(denied.GET(new Request("https://example.invalid/api/export/learning-content?domain=lessons")), /Forbidden/);
@@ -98,7 +115,7 @@ test("learning management, snapshots and student visibility on isolated Postgres
     const common = { "drizzle-orm": orm, "@/server/db": { db }, "@/server/db/schema": schema, "@/lib/auth/permissions": permissions };
     const audit = await loadServerModule<typeof import("../src/server/audit")>("src/server/audit.ts", common);
     const scope = await loadServerModule<typeof import("../src/server/auth/scope")>("src/server/auth/scope.ts", common);
-    const records = await loadServerModule<typeof import("../src/server/learning-content-record")>("src/server/learning-content-record.ts", { ...common, "@/lib/learning-content": contentRules, "@/lib/schemas/learning-content": contentSchema, "@/server/audit": audit });
+    const records = await loadServerModule<typeof import("../src/server/learning-content-record")>("src/server/learning-content-record.ts", { ...common, "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig, "@/lib/schemas/learning-content": contentSchema, "@/server/audit": audit });
     const progress = await loadServerModule<typeof import("../src/server/student-onboarding-record")>("src/server/student-onboarding-record.ts", { ...common, "@/lib/schemas/student-onboarding": onboardingSchema, "@/server/auth/scope": scope, "@/server/audit": audit });
     const queries = await loadServerModule<typeof import("../src/server/queries/learning-content")>("src/server/queries/learning-content.ts", { ...common, "@/lib/student-learning": studentRules, "@/lib/study-plan": studyPlan, "@/server/auth/scope": scope });
     const studentQueries = await loadServerModule<typeof import("../src/server/queries/student-area")>("src/server/queries/student-area.ts", { ...common, "@/lib/student-learning": studentRules, "@/lib/study-plan": studyPlan, "@/server/auth/scope": scope });
@@ -154,7 +171,7 @@ test("learning management, snapshots and student visibility on isolated Postgres
       assert.equal((await studentQueries.listMyResources(trialUser, db)).length, 0);
     });
     await t.test("opaque uploads enforce ownership, single consumption, and replacement preserves resource ID", async () => {
-      const upload = (filename: string) => conn.insert(schema.learningUploads).values({ actorId: admin.id, filename, objectPath: contentRules.resourceObjectPath(filename, crypto.randomUUID()), contentType: "application/pdf", size: 100, mode: "view", status: "uploaded", expiresAt: new Date(Date.now() + 60000) }).returning();
+      const upload = (filename: string) => conn.insert(schema.learningUploads).values({ actorId: admin.id, filename, objectPath: uploadConfig.resourceObjectPath(filename, crypto.randomUUID()), contentType: "application/pdf", size: 100, mode: "view", status: "uploaded", expiresAt: new Date(Date.now() + 60000) }).returning();
       const [first] = await upload("first.pdf"); const data = { title: "Uploaded", lessonId: null, audience: "formal" as const, mode: "view" as const, active: true, source: "file" as const, youtubeUrl: "", uploadId: first.id };
       const saved = await conn.transaction((tx) => records.saveResourceRecord(tx as never, admin, data));
       await assert.rejects(conn.transaction((tx) => records.saveResourceRecord(tx as never, admin, data)), /hết hạn/);
@@ -187,11 +204,11 @@ test("learning management, snapshots and student visibility on isolated Postgres
       await conn.transaction((tx) => progress.confirmStudentTrialLesson(tx as never, sale, { ...input, studentId: students[0].id, planLessonId: trial.id, expectedReportedAt: null }));
     });
     await t.test("audit failure rolls template changes back atomically", async () => {
-      const failing = await loadServerModule<typeof import("../src/server/learning-content-record")>("src/server/learning-content-record.ts", { ...common, "@/lib/learning-content": contentRules, "@/lib/schemas/learning-content": contentSchema, "@/server/audit": { audit: async () => { throw new Error("Audit unavailable"); } } });
+      const failing = await loadServerModule<typeof import("../src/server/learning-content-record")>("src/server/learning-content-record.ts", { ...common, "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig, "@/lib/schemas/learning-content": contentSchema, "@/server/audit": { audit: async () => { throw new Error("Audit unavailable"); } } });
       await assert.rejects(conn.transaction((tx) => failing.saveLessonRecord(tx as never, admin, { id: templates[0].id, phase: "foundation", title: "Must roll back", baseDays: 1, lessonNumbers: [1], active: true })), /Audit unavailable/);
       assert.equal((await conn.select().from(schema.lessons).where(orm.eq(schema.lessons.id, templates[0].id)))[0].title, "Changed template");
     });
-    const actionDependencies = { ...common, "@/lib/learning-content": contentRules, "@/lib/schemas/learning-content": contentSchema, "@/server/auth/session": { requirePermission: async () => admin }, "@/server/audit": audit, "next/cache": { revalidatePath: () => undefined }, "@/server/learning-content-record": records, "@/server/student-onboarding-record": progress, "@/server/learning-storage": { removeLearningObject: async () => true, ensureLearningBucket: async () => undefined } };
+    const actionDependencies = { ...common, "@/lib/learning-content": contentRules, "@/server/learning-upload-config": uploadConfig, "@/lib/schemas/learning-content": contentSchema, "@/server/auth/session": { requirePermission: async () => admin }, "@/server/audit": audit, "next/cache": { revalidatePath: () => undefined }, "@/server/learning-content-record": records, "@/server/student-onboarding-record": progress, "@/server/learning-storage": { removeLearningObject: async () => true, ensureLearningBucket: async () => undefined } };
     await t.test("trial resource access follows the student's snapshot after a template trial swap", async () => {
       for (const lessonId of [templates[0].id, templates[3].id]) await conn.transaction((tx) => records.saveResourceRecord(tx as never, admin, { title: `Snapshot ${lessonId}`, lessonId, audience: "trial", mode: "view", active: true, source: "youtube", youtubeUrl: "https://youtu.be/aqz-KE-bpKQ" }));
       const trialUser = { ...admin, roles: ["student"] as permissions.Role[], studentId: students[0].id };
@@ -213,10 +230,15 @@ test("learning management, snapshots and student visibility on isolated Postgres
     });
     await t.test("orphan cleanup advances past cancelled reservations instead of repeatedly scanning the same 30", async () => {
       const actions = await loadServerModule<typeof import("../src/server/actions/learning-content")>("src/server/actions/learning-content.ts", { ...actionDependencies, "@/lib/runtime-mode": { USE_MOCK: false } });
-      await conn.insert(schema.learningUploads).values(Array.from({ length: 31 }, () => ({ actorId: admin.id, filename: "cancelled.pdf", objectPath: contentRules.resourceObjectPath("cancelled.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "cancelled", expiresAt: new Date(0) })));
-      const [expired] = await conn.insert(schema.learningUploads).values({ actorId: admin.id, filename: "orphan.pdf", objectPath: contentRules.resourceObjectPath("orphan.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "uploaded", expiresAt: new Date(0) }).returning();
+      await conn.insert(schema.learningUploads).values(Array.from({ length: 31 }, () => ({ actorId: admin.id, filename: "cancelled.pdf", objectPath: uploadConfig.resourceObjectPath("cancelled.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "cancelled", expiresAt: new Date(0) })));
+      const [expired] = await conn.insert(schema.learningUploads).values({ actorId: admin.id, filename: "orphan.pdf", objectPath: uploadConfig.resourceObjectPath("orphan.pdf", crypto.randomUUID()), contentType: "application/pdf", size: 1, mode: "view", status: "uploaded", expiresAt: new Date(0) }).returning();
       const input = { filename: "new.pdf", contentType: "application/pdf", size: 1, mode: "view" };
-      assert.equal((await actions.prepareResourceUpload(input)).ok, true);
+      const prepared = await actions.prepareResourceUpload(input);
+      assert.equal(prepared.ok, true);
+      if (prepared.ok) {
+        const [reservation] = await conn.select().from(schema.learningUploads).where(orm.eq(schema.learningUploads.id, prepared.data.id));
+        assert.notEqual(reservation.objectPath.split("/")[1], prepared.data.id, "public reservation IDs never reveal the private path nonce");
+      }
       assert.equal((await conn.select().from(schema.learningUploads).where(orm.eq(schema.learningUploads.id, expired.id)))[0].status, "cancelled");
       const count = (await conn.select().from(schema.auditLog).where(orm.eq(schema.auditLog.entityId, expired.id))).length;
       assert.equal((await actions.prepareResourceUpload(input)).ok, true);

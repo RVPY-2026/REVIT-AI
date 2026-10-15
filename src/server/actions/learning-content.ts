@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, lt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import type { z } from "zod";
-import { resourceObjectPath, RESOURCE_BUCKET } from "@/lib/learning-content";
+import { resourceObjectPath, RESOURCE_BUCKET } from "@/server/learning-upload-config";
 import { idSchema, lessonSchema, resourceSchema, reorderSchema, toggleSchema, trialSwapSchema, uploadSchema, confirmLessonSchema, bulkConfirmSchema } from "@/lib/schemas/learning-content";
 import type { Permission, SessionUser } from "@/lib/auth/permissions";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -62,7 +62,7 @@ export async function prepareResourceUpload(input: unknown): Promise<ActionResul
   }
   return mutate(uploadSchema, parsed.data, "resources.manage", async (tx, caller, data) => {
     const id = randomUUID();
-    await tx.insert(learningUploads).values({ id, actorId: caller.id, filename: data.filename, objectPath: resourceObjectPath(data.filename, id), contentType: data.contentType, size: data.size, mode: data.mode, expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000) });
+    await tx.insert(learningUploads).values({ id, actorId: caller.id, filename: data.filename, objectPath: resourceObjectPath(data.filename, randomUUID()), contentType: data.contentType, size: data.size, mode: data.mode, expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000) });
     await audit(tx, { actorId: user.id, action: "resource.upload_prepared", entity: "learning_uploads", entityId: id });
     return { id, filename: data.filename };
   });
