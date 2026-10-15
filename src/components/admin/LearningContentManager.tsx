@@ -9,12 +9,15 @@ import {
   Image as ImageIcon,
   FileArchive,
   Plus,
-  SlidersHorizontal,
   BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DataTable, type DataTableColumn } from "./DataTable";
 import { StatusBadge } from "./StatusBadge";
+import { ManagementPageHeader } from "./ManagementPageHeader";
+import { ManagementEmpty } from "./ManagementEmpty";
+import { ViewerFilters } from "./ViewerFilters";
+import { ViewerPagination } from "./ViewerPagination";
 import { LearningSelect } from "./LearningSelect";
 import { LearningLessonDialog } from "./LearningLessonDialog";
 import { LearningResourceDialog } from "./LearningResourceDialog";
@@ -23,13 +26,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -74,7 +70,6 @@ export function LearningContentManager({
   const [audience, setAudience] = useState("any");
   const [lessonFilter, setLessonFilter] = useState("any");
   const [page, setPage] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [editor, setEditor] = useState<Row | "new" | null>(null);
   const [trialOpen, setTrialOpen] = useState(false);
   const [deleting, setDeleting] = useState<ManagedResource | null>(null);
@@ -365,25 +360,16 @@ export function LearningContentManager({
   const Container = showcase ? "div" : "main";
   return (
     <Container className="content space-y-6 py-8 sm:py-10">
-      <header className="sticky top-16 z-20 flex flex-col justify-between gap-4 bg-background py-2 sm:flex-row sm:items-start">
-        <div className="min-w-0">
-          <p className="font-mono text-xs text-muted-foreground">
-            QUẢN LÝ · HỌC TẬP
-          </p>
-          <h1 className="mt-2 font-heading text-[28px] font-light">
-            {domain === "resources" ? "Tài liệu" : "Chương trình học"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {domain === "resources"
-              ? "Quản lý tài liệu và video theo từng bài học."
-              : "Điều chỉnh bài học cho các kế hoạch mở sau này."}
-          </p>
-        </div>
-        <Button className="min-h-11 shrink-0" onClick={() => setEditor("new")}>
-          <Plus aria-hidden="true" strokeWidth={1.75} />
-          Thêm {noun}
-        </Button>
-      </header>
+      <ManagementPageHeader
+        eyebrow="QUẢN LÝ · HỌC TẬP"
+        title={domain === "resources" ? "Tài liệu" : "Chương trình học"}
+        helper={domain === "resources"
+          ? "Quản lý tài liệu và video theo từng bài học."
+          : "Điều chỉnh bài học cho các kế hoạch mở sau này."}
+        action={<Button className="min-h-11" onClick={() => setEditor("new")}>
+          <Plus aria-hidden="true" strokeWidth={1.75} />Thêm {noun}
+        </Button>}
+      />
       {preview && (
         <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
           Chế độ xem thử: Bạn có thể xem biểu mẫu; thay đổi chưa được lưu.
@@ -403,19 +389,9 @@ export function LearningContentManager({
           />
         </div>
         {domain === "resources" && (
-          <>
-            <div className="hidden gap-4 md:col-span-2 md:grid md:grid-cols-2">
-              {filters("desktop")}
-            </div>
-            <Button
-              variant="outline"
-              className="min-h-11 md:hidden"
-              onClick={() => setFilterOpen(true)}
-            >
-              <SlidersHorizontal aria-hidden="true" strokeWidth={1.75} />
-              Bộ lọc ({filterCount})
-            </Button>
-          </>
+          <ViewerFilters count={filterCount} title="Bộ lọc tài liệu" description="Chọn đối tượng và bài học.">
+            {filters}
+          </ViewerFilters>
         )}
         {domain === "lessons" && (
           <div className="flex items-end">
@@ -487,12 +463,7 @@ export function LearningContentManager({
           </section>
         ))
       ) : (
-        <section className="flex flex-col items-center rounded-2xl border border-dashed bg-card p-8 text-center">
-          <BookOpen
-            aria-hidden="true"
-            className="size-8 text-muted-foreground"
-            strokeWidth={1.75}
-          />
+        <ManagementEmpty>
           <h2 className="mt-4 text-lg font-medium">Chưa có {noun} phù hợp</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {allRows.length
@@ -512,47 +483,14 @@ export function LearningContentManager({
           >
             {allRows.length ? "Bỏ bộ lọc" : `Thêm ${noun}`}
           </Button>
-        </section>
+        </ManagementEmpty>
       )}
-      <footer className="flex flex-wrap items-center justify-between gap-3">
-        <p aria-live="polite" className="text-sm text-muted-foreground">
-          Đang hiển thị {rows.length ? currentPage * PAGE_SIZE + 1 : 0}–
-          {Math.min((currentPage + 1) * PAGE_SIZE, rows.length)} trong tổng số{" "}
-          {rows.length}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="min-h-11"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            Trang trước
-          </Button>
-          <Button
-            variant="outline"
-            className="min-h-11"
-            disabled={(currentPage + 1) * PAGE_SIZE >= rows.length}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Trang sau
-          </Button>
-        </div>
-      </footer>
-      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
-        <SheetContent side="bottom">
-          <SheetHeader>
-            <SheetTitle>Bộ lọc tài liệu</SheetTitle>
-            <SheetDescription>Chọn đối tượng và bài học.</SheetDescription>
-          </SheetHeader>
-          <div className="grid gap-4 p-4">
-            {filters("mobile")}
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              Xem tài liệu
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <ViewerPagination
+        total={rows.length}
+        page={currentPage + 1}
+        size={PAGE_SIZE}
+        onPageChange={(next) => setPage(next - 1)}
+      />
       {editor !== null &&
         (domain === "lessons" ? (
           <LearningLessonDialog

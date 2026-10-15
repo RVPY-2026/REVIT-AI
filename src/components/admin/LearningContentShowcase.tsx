@@ -17,7 +17,8 @@ export function LearningContentShowcase() {
       <h2 className="text-[28px] font-light">Quản lý học tập</h2>
       <p className="text-sm text-muted-foreground">
         Nút chính dùng màu chung; nhãn trạng thái có chữ và viền rõ trong hai
-        giao diện.
+        giao diện. Tiêu đề, bộ lọc, phân trang và trạng thái tải dùng chung với
+        các trang quản lý hệ thống.
       </p>
       <div className="flex flex-wrap gap-3">
         {(

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, usePathname } from "next/navigation";
@@ -7,10 +7,48 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { AUDIT_ACTIONS, AUDIT_ENTITIES } from "@/lib/audit-labels";
 import { viewerFormSchema, type ViewerFilter, type ViewerFormValues } from "@/lib/schemas/admin-viewers";
-export function ViewerFilters({ filter, audit = false }: { filter: ViewerFilter; audit?: boolean }) {
-  return <ViewerFilterForm key={JSON.stringify(filter)} filter={filter} audit={audit} />;
+type ViewerFiltersProps =
+  | { filter: ViewerFilter; audit?: boolean; children?: never }
+  | { children: (prefix: string) => ReactNode; count: number; title: string; description: string; filter?: never };
+
+/** URL-backed viewer filters or controlled domain fields with the same mobile shell. */
+export function ViewerFilters(props: ViewerFiltersProps) {
+  if (props.children) return <ControlledViewerFilters {...props} />;
+  return <ViewerFilterForm key={JSON.stringify(props.filter)} filter={props.filter} audit={props.audit ?? false} />;
+}
+
+function ControlledViewerFilters({ children, count, title, description }: Extract<ViewerFiltersProps, { children: unknown }>) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <>
+      <div className="hidden gap-4 md:col-span-2 md:grid md:grid-cols-2">
+        {children(`${id}-desktop`)}
+      </div>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger asChild>
+          <Button type="button" variant="outline" className="min-h-11 md:hidden">
+            Bộ lọc ({count})
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="bottom">
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+            <SheetDescription>{description}</SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-4 p-4">
+            {children(`${id}-mobile`)}
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Xem kết quả
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
 }
 function ViewerFilterForm({ filter, audit }: { filter: ViewerFilter; audit: boolean }) {
   const [open, setOpen] = useState(false); const [pending, start] = useTransition();
