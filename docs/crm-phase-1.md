@@ -20,6 +20,8 @@ Manual creation checks a valid phone after 350 ms. Create and phone saves rechec
 
 ## Archive and ownership
 
+A separately authorized, tightly gated permanent-deletion exception exists for admins viewing profiles archived at least 30 days. See [student-permanent-delete.md](student-permanent-delete.md) for blockers, retained codes, audit, FK decisions and verification. Archiving itself remains reversible.
+
 Admins archive with `spam`, `duplicate`, `test`, or `other` (other requires a note), and can restore from the profile. Archived rows are excluded from default lists, Kanban, dashboard aggregates and follow-up. They cannot be edited, classified, enrolled, activated, checklist-updated, or noted until restored. Sheet imports still recognize their immutable code but skip their changes. Archiving preserves status/enrollment and never deletes a record, consumes an allocator value or reuses a code.
 
 Admins can transfer a profile to an active source with a reason and an expected-source snapshot. Student code, codeMonth and seq remain immutable. SourceId represents current ownership, so the old `(sourceId, codeMonth, seq)` uniqueness was removed; `students.code` remains unique and atomic `source_month_counters` retains its independent `(sourceId, codeMonth)` key. Transfer neither updates nor resets counters. Existing source/month code prefixes must remain stable. Transfer history contains before/after source IDs and a reason.
