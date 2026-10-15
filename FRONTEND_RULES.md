@@ -267,6 +267,8 @@ Single centered card with the Google sign-in button and an email field that send
 - **Every data view has four states:** loading (skeleton), data, empty (illustration + how to add the first item), error (message + retry).
 - **Documents shown to students are view-only:** no download button, no direct link to the source file.
 
+**Management viewer patterns:** reuse `ManagementPageHeader` (mono eyebrow, h1, helper and one action instance, sticky below the shell toolbar), `ManagementEmpty` (icon, explanation and corrective action), and `ManagementLoading` (matching source/audit/queue skeletons). Use `ViewerFilters` for labelled date/search controls behind one mobile filter button and `ViewerPagination` for filter-preserving previous/next navigation. Audit pagination displays a bounded `10.000+` total and asks the reader to narrow filters beyond the 10,000 newest matches. These components and both pagination modes are demonstrated in `/ui-kit`; do not clone the header action or its dialog state for mobile.
+
 ---
 
 ## 6. Content and formatting

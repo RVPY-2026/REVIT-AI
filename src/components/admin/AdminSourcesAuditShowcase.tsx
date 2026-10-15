@@ -16,6 +16,7 @@ export function AdminSourcesAuditShowcase() {
     action={<AdSourceDialog owners={mockSourceOwners} usedCodes={mockAdSources.map((s) => s.code)} />} />
     <div className="flex flex-wrap gap-2">{["active", "inactive", "pending", "sent", "failed"].map((s) => <StatusBadge key={s} status={s as "active" | "inactive" | "pending" | "sent" | "failed"} />)}</div>
     <ViewerFilters filter={{ page: 1 }} audit /><ViewerPagination page={1} total={113} />
+    <section aria-label="Phân trang nhật ký giới hạn"><ViewerPagination page={200} total={10000} totalCapped hasNext={false} /></section>
     <ManagementRefreshButton label="Tải lại nhật ký" />
     <div id="source-refresh-showcase" className="space-y-3 rounded-2xl border p-4"><h2 className="font-heading text-lg">Sửa nguồn sau khi tải lại</h2>
       <p className="text-sm text-muted-foreground">Đổi dữ liệu minh họa rồi mở lại hộp thoại để xem thông tin mới.</p>

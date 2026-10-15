@@ -39,6 +39,26 @@ async function keyboardActivate(locator) {
   await locator.focus(); await page.keyboard.press("Enter"); await page.waitForTimeout(250);
 }
 try {
+  if (process.argv.includes("--headers")) {
+    const actions = { "nguon-quang-cao": "Thêm nguồn", "nhat-ky": "Tải lại nhật ký", zalo: "Thử lại tất cả mục lỗi" };
+    for (const theme of ["light", "dark"]) for (const width of [375, 768, 1280]) for (const route of Object.keys(titles)) {
+      await page.setViewportSize({ width, height: 900 }); await open(route);
+      await page.evaluate((value) => localStorage.setItem("theme", value), theme); await page.reload({ waitUntil: "domcontentloaded" });
+      const action = page.getByRole("button", { name: actions[route], exact: true });
+      await action.waitFor(); assert.equal(await action.count(), 1);
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.waitForTimeout(250);
+      assert.equal(await action.count(), 1);
+      const box = await action.boundingBox(); assert.ok(box && box.y >= 64 && box.y + box.height <= 804, `Sticky action unreachable: ${route}/${width}/${theme}`);
+      await capture(`header-sticky-${route}-${theme}-${width}.png`);
+      if (route !== "nhat-ky") {
+        const modal = page.getByRole(route === "zalo" ? "alertdialog" : "dialog");
+        await keyboardActivate(action); await modal.waitFor();
+        assert.equal(await modal.count(), 1);
+        await page.keyboard.press("Escape"); await modal.waitFor({ state: "hidden" });
+      } else { await keyboardActivate(action); await page.getByRole("heading", { name: titles[route], exact: true }).waitFor(); }
+    }
+    await writeFile(path.join(output, "sticky-header-regressions.json"), JSON.stringify({ passed: true, observations }, null, 2));
+  }
   if (process.argv.includes("--captures")) {
     for (const route of routeArg ? [routeArg] : Object.keys(titles)) for (const theme of themeArg ? [themeArg] : ["light", "dark"]) {
       await open(route); await page.evaluate((value) => localStorage.setItem("theme", value), theme); await page.reload({ waitUntil: "domcontentloaded" });
@@ -81,6 +101,10 @@ try {
     await page.getByRole("dialog").first().waitFor(); assert.match(await page.getByRole("dialog").first().innerText(), /Tổng hồ sơ/);
     await capture("source-detail-keyboard.png"); await page.keyboard.press("Escape"); await page.waitForTimeout(250);
     await page.goto(`${base}/ui-kit`, { waitUntil: "domcontentloaded" });
+    const bounded = page.getByRole("region", { name: "Phân trang nhật ký giới hạn", exact: true });
+    await bounded.getByText(/Đang hiển thị 9951–10000 trong tổng số 10.000\+/).waitFor();
+    assert.equal(await bounded.getByRole("button", { name: "Trang sau", exact: true }).isDisabled(), true);
+    assert.equal(await bounded.getByRole("button", { name: "Trang trước", exact: true }).isEnabled(), true);
     const fixture = page.locator("#source-refresh-showcase"); await fixture.waitFor();
     await keyboardActivate(fixture.getByRole("button", { name: "Sửa nguồn", exact: true }));
     assert.equal(await page.getByLabel("Tên nguồn", { exact: true }).inputValue(), "Nguồn A"); await page.keyboard.press("Escape"); await page.waitForTimeout(250);
@@ -118,7 +142,7 @@ try {
       await capture(`${route}-sale-no-permission.png`);
     }
     await context.addCookies([{ name: "rvpy-mock-role", value: "admin", url: base }]);
-    await writeFile(path.join(output, "keyboard-and-regressions.json"), JSON.stringify({ passed: true, checks: ["source uniqueness and uppercase on blur", "owner picker Tab/Enter", "dialog/sheet Escape", "source snapshot refresh and mock server error preserves values", "filter clear resets all values", "bulk retry dialog keyboard and disabled preview save", "audit details and JSON toggle", "server pagination 51-100", "sale denied on all three routes"] }, null, 2));
+    await writeFile(path.join(output, "keyboard-and-regressions.json"), JSON.stringify({ passed: true, checks: ["source uniqueness and uppercase on blur", "owner picker Tab/Enter", "dialog/sheet Escape", "source snapshot refresh and mock server error preserves values", "filter clear resets all values", "bulk retry dialog keyboard and disabled preview save", "audit details and JSON toggle", "server pagination 51-100", "bounded pagination shows 10.000+ and stops at page 200", "sale denied on all three routes"] }, null, 2));
   }
   if (process.argv.includes("--transfers")) {
     for (const theme of ["light", "dark"]) for (const width of [375, 768, 1280]) {

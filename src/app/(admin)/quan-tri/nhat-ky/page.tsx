@@ -27,5 +27,5 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
   return <main className="content py-8 sm:py-10"><ManagementPageHeader title="Nhật ký hoạt động" helper="Xem thay đổi theo người thực hiện, thời gian và hồ sơ." action={<ManagementRefreshButton label="Tải lại nhật ký" />} />
     {USE_MOCK && <p className="mt-5 text-sm text-muted-foreground">Chế độ xem thử · Dữ liệu minh họa.</p>}
     <ViewerFilters filter={parsed.data} audit /><div className="mt-5">{rows.length ? <AuditLogList rows={rows} /> : <ManagementEmpty><p>Chưa có hoạt động khớp bộ lọc. Bạn mở rộng khoảng ngày để tìm thêm.</p><Button variant="outline" asChild><Link href="/quan-tri/nhat-ky">Xóa bộ lọc</Link></Button></ManagementEmpty>}</div>
-    <ViewerPagination total={state === "empty" ? 0 : state === "one" ? 1 : data.total} page={data.page} /></main>;
+    <ViewerPagination total={state === "empty" ? 0 : state === "one" ? 1 : data.total} page={data.page} totalCapped={data.totalCapped} hasNext={state === "empty" || state === "one" ? false : data.hasNext} /></main>;
 }
