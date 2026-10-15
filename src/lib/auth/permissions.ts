@@ -21,6 +21,7 @@ const PERMISSIONS = {
   "students.edit": ["admin", "sale"],
   "students.create": ["admin", "sale"], // sale: active sources they own only
   "students.archive": ["admin"],
+  "students.delete": ["admin"],
   "students.transfer": ["admin"],
   "enrollments.trial": ["admin", "sale"],
   "students.activate": ["admin"],

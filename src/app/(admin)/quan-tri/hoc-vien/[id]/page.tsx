@@ -9,6 +9,8 @@ import { StatusCell } from "@/components/admin/StatusCell"
 import { StudentProfileForm, type ProfileFieldSpec } from "@/components/admin/StudentProfileForm"
 import { StudentOnboardingPanel } from "@/components/admin/StudentOnboardingPanel"
 import { StudentManagementActions } from "@/components/admin/StudentManagementActions"
+import { StudentPermanentDelete } from "@/components/admin/StudentPermanentDelete"
+import { getStudentDeletionCheck } from "@/lib/api/student-deletion"
 import { NoteBodyEditor } from "@/components/admin/NoteBodyEditor"
 import { RecordSentMessage } from "@/components/admin/RecordSentMessage"
 import { StudentContactDialog } from "@/components/admin/StudentContactDialog"
@@ -49,6 +51,7 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
     can(user, "students.transfer") ? getStudentSources() : Promise.resolve([]),
   ])
   if (!student) notFound()
+  const deletion = student.archivedAt && can(user, "students.delete") ? await getStudentDeletionCheck(id) : null
   const editable = can(user, "students.edit") && !student.archivedAt
   const suggested = messages.find((message) => message.forStatus === student.status) ?? messages.find((message) => message.forStatus === null)
   const extraMessages = messages.filter((message) => message.id !== suggested?.id)
@@ -93,6 +96,7 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
       {student.archivedAt && <p role="status" className="mt-4 rounded-xl border border-warning p-3 text-sm text-warning">Đã lưu trữ · {student.archiveReason ? ARCHIVE_REASON_LABELS[student.archiveReason] : ""}. Bạn khôi phục hồ sơ trước khi sửa hoặc ghi chú.</p>}
+      {student.archivedAt && deletion && <StudentPermanentDelete student={{ id, code: student.code, archivedAt: student.archivedAt }} check={deletion} />}
 
       <div className="mt-7 grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <div className="grid min-w-0 gap-4">

@@ -1,3 +1,4 @@
+import { migrateTestDatabase } from "./helpers/migrations";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
@@ -29,8 +30,7 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
   const invalidations: string[] = [];
   let caller: permissions.SessionUser;
   try {
-    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
+    await migrateTestDatabase(pg, 0);
     const [actor, owner] = await connection.insert(schema.users).values([
       { email: "crm-admin@example.invalid", name: "Fixture admin" }, { email: "crm-sale@example.invalid", name: "Fixture sale" },
     ]).returning();

@@ -13,6 +13,7 @@ import { StudentTable } from "@/components/admin/StudentTable";
 import { CallNoteForm } from "@/components/admin/CallNoteForm";
 import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning";
 import { StudentManagementActions } from "@/components/admin/StudentManagementActions";
+import { StudentPermanentDelete } from "@/components/admin/StudentPermanentDelete";
 import { TrialSummary } from "@/components/admin/TrialSummary";
 import { StudentOnboardingPanel } from "@/components/admin/StudentOnboardingPanel";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,8 @@ export function CrmComponentShowcase() {
     }} />
     <div className="flex flex-wrap gap-2"><Button size="compact">Nút gọn · cảm ứng 44px</Button><ClipboardButton text="R2610001" iconOnly label="Sao chép mẫu nút gọn" /></div>
     <CallNoteForm studentId="mock-student-1" preview />
+    <StudentPermanentDelete preview student={{ id: "mock-student-14", code: "R2610005", archivedAt: "2026-09-01T00:00:00Z" }} check={{ blockers: [] }} />
+    <StudentPermanentDelete preview student={{ id: "mock-student-13", code: "R2610004", archivedAt: "2026-10-14T00:00:00Z" }} check={{ blockers: ["Hồ sơ phải được lưu trữ ít nhất 30 ngày trước khi xóa vĩnh viễn.", "Hồ sơ đã có giao dịch thanh toán."] }} />
     <DuplicatePhoneWarning matches={[{ id: "mock-student-1", code: "A2610001", fullName: "Học viên mẫu", status: "consulting", sourceCode: "A", signedUpAt: "2026-10-09T00:00:00Z" }, { otherSource: true }]} />
     <StudentManagementActions student={{ id: "mock-student-1", sourceId: "mock-source-a", archivedAt: null }} sources={[{ id: "mock-source-a", code: "A", name: "Nguồn mẫu A" }, { id: "mock-source-r", code: "R", name: "RVPY" }]} />
     <TrialSummary student={{ id: "mock-student-1", code: "A2610001", fullName: "Học viên mẫu", phone: "0901234567", email: null, status: "trial", sourceId: "mock-source-a", sourceCode: "A", sourceName: "Nguồn mẫu A", signedUpAt: "2026-10-09T00:00:00Z", lastContactAt: null, trial: { daysLeft: 3, checklist: 2, confirmed: 1, hasPlan: true } }} />

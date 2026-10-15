@@ -7,3 +7,10 @@ export const archiveStudentSchema = z.object({
 }).strict().refine(data => data.reason !== "other" || Boolean(data.note), { path: ["note"], message: "Bạn nhập ghi chú cho lý do khác." });
 export const restoreStudentSchema = z.object({ studentId: z.uuid(), expectedArchivedAt: z.iso.datetime() }).strict();
 export const transferStudentSchema = z.object({ studentId: z.uuid(), expectedSourceId: z.uuid(), sourceId: z.uuid(), reason: z.string().trim().min(1).max(4000) }).strict();
+
+export const deleteStudentPermanentlySchema = z.object({
+  studentId: z.uuid(),
+  expectedArchivedAt: z.iso.datetime(),
+  confirmationCode: z.string().regex(/^[A-Z][0-9]{2}(0[1-9]|1[0-2])[0-9]{3}$/),
+  reason: z.string().trim().min(1).max(4000),
+}).strict();
