@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LEAD_CHANNEL_OPTIONS, OCCUPATION_OPTIONS } from "@/lib/constants";
+import { normalizePhone } from "@/lib/phone";
 
 // Shared by the trial sign-up form (react-hook-form) and the server action.
 export const leadSignupSchema = z.object({
@@ -7,7 +8,7 @@ export const leadSignupSchema = z.object({
   phone: z
     .string()
     .max(30, "Số điện thoại quá dài")
-    .transform((v) => v.replace(/\D/g, ""))
+    .transform(normalizePhone)
     .pipe(z.string().regex(/^0\d{9}$/, "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0")),
   email: z
     .email("Email chưa đúng định dạng").max(254, "Email quá dài")
@@ -44,6 +45,7 @@ export type LeadSignupInput = z.input<typeof leadSignupSchema>;
 /** Staff can enter a prospect before an email or full questionnaire is available. */
 export const manualLeadSchema = leadSignupSchema.omit({ sourceCode: true, referrerCode: true, captchaToken: true }).extend({
   sourceId: z.uuid("Nguồn chưa hợp lệ"),
+  duplicateAcknowledged: z.boolean().optional(),
   email: z.string().trim().pipe(z.email("Email chưa đúng định dạng").max(254, "Email quá dài")).transform((v) => v.toLowerCase()).optional(),
   occupation: z.string().trim().max(200, "Nghề nghiệp tối đa 200 ký tự").optional(),
   birthYear: z.number().int("Năm sinh phải là số nguyên").min(1900, "Năm sinh chưa hợp lệ").max(new Date().getFullYear(), "Năm sinh chưa hợp lệ").optional(),

@@ -15,6 +15,7 @@ import { SIGNUP_COOKIE, ZALO_LINK_COOKIE, SIGNUP_SESSION_SECONDS, hashSignupToke
   getSignupSession, renewSignupZaloCode } from "@/server/signup-session";
 import { SignupProtectionError, requireSignupLimits, signupClientIp, validateSignupCaptcha } from "@/server/signup-protection";
 import type { ActionResult } from "@/server/result";
+import { DuplicatePhoneError, requirePhoneAcknowledgment } from "@/server/phone-matches";
 
 const DEFAULT_SOURCE = "R";
 
@@ -67,20 +68,22 @@ export async function createManualLead(input: ManualLeadInput): Promise<ActionRe
   if (!parsed.success) return { ok: false, error: "Thông tin chưa hợp lệ", fieldErrors: parsed.error.flatten().fieldErrors };
   const user = await requirePermission("students.create");
   if (USE_MOCK) return { ok: false, error: "Chế độ xem thử không lưu học viên mới." };
-  const { sourceId, answers, facebookLink, ...lead } = parsed.data;
+  const { sourceId, answers, facebookLink, duplicateAcknowledged, ...lead } = parsed.data;
   try {
     const row = await db.transaction(async (tx) => {
       const [source] = await tx.select({ id: adSources.id, code: adSources.code }).from(adSources)
         .where(and(eq(adSources.id, sourceId), eq(adSources.active, true),
-          isAdmin(user) ? undefined : eq(adSources.ownerUserId, user.id))).for("update").limit(1);
+          isAdmin(user) ? undefined : eq(adSources.ownerUserId, user.id))).for("share").limit(1);
       if (!source) return null;
-      return insertLeadRecord(tx, source, lead, { ...answers, ...(facebookLink ? { facebookLink } : {}) }, user.id);
+      await requirePhoneAcknowledgment(tx, user, lead.phone, duplicateAcknowledged);
+      return insertLeadRecord(tx, source, lead, { ...answers, ...(facebookLink ? { facebookLink } : {}) }, user.id, null, duplicateAcknowledged);
     });
     if (!row) return { ok: false, error: "Nguồn không tồn tại hoặc bạn không có quyền sử dụng." };
     revalidatePath("/quan-tri/hoc-vien");
     revalidatePath("/quan-tri");
     return { ok: true, data: row };
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplicatePhoneError) return { ok: false, error: error.message };
     return { ok: false, error: "Chưa thể thêm học viên. Bạn thử lại sau nhé." };
   }
 }

@@ -1,15 +1,23 @@
 import "server-only";
-import { and, asc, count, desc, eq, exists, gte, ilike, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNull, isNotNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { can, isAdmin, type SessionUser } from "@/lib/auth/permissions";
-import { DEFAULT_SORT_DIR, studentFilterSchema, studentMonthRange, studentSearchPattern, type StudentDetail, type ParsedStudentFilter, type StudentFilter, type StudentList, type StudentSummary, type StudentOverview, type StudentKanban } from "@/lib/schemas/student";
+import { DEFAULT_SORT_DIR, StudentArchiveAccessError, studentFilterSchema, studentMonthRange, studentSearchPattern, type StudentDetail, type ParsedStudentFilter, type StudentFilter, type StudentList, type StudentSummary, type StudentOverview, type StudentKanban } from "@/lib/schemas/student";
 import { STUDENT_STATUSES } from "@/lib/constants";
 import { ACTIVE_STATUSES, FOLLOW_UP_AFTER_DAYS, businessDayStart } from "@/lib/follow-up";
 import { db } from "@/server/db";
-import { adSources, callNotes, studentStatusEvents, students, users } from "@/server/db/schema";
+import { adSources, callNotes, studentStatusEvents, students, users, enrollments, studyPlanLessons } from "@/server/db/schema";
+import { normalizePhone, NORMALIZED_PHONE_SQL } from "@/lib/phone";
+import { isPhoneSearch, studentSearchText } from "@/lib/student-search";
+import { canCorrectContactNote } from "@/lib/contact-note";
 import { studentScope } from "@/server/auth/scope";
 
 const managementPermission = "students.view" as const;
+
+export async function findPhoneMatches(user: SessionUser, phone: string) {
+  const { phoneMatches } = await import("@/server/phone-matches");
+  return phoneMatches(db, user, phone, undefined, true);
+}
 
 function assertCanView(user: SessionUser) {
   if (!can(user, managementPermission)) throw new Error("Forbidden");
@@ -26,6 +34,8 @@ function assertDatabaseSourceId(sourceId: string | undefined) {
 /** Build all list/export predicates from validated input and an explicit caller scope. */
 export function buildStudentConditions(user: SessionUser, filter: ParsedStudentFilter): SQL[] {
   const conditions: SQL[] = [studentScope(user, "management")];
+  if (filter.archived && !isAdmin(user)) throw new StudentArchiveAccessError();
+  conditions.push(filter.archived ? isNotNull(students.archivedAt) : isNull(students.archivedAt));
 
   if (filter.status) conditions.push(eq(students.status, filter.status));
   if (filter.sourceId) conditions.push(eq(students.sourceId, filter.sourceId));
@@ -36,11 +46,12 @@ export function buildStudentConditions(user: SessionUser, filter: ParsedStudentF
   if (filter.followUp) conditions.push(followUpCondition(filter.followUp));
   if (filter.search) {
     // Escape LIKE metacharacters so search is a bounded, literal substring lookup.
-    const pattern = studentSearchPattern(filter.search);
+    const pattern = studentSearchPattern(studentSearchText(filter.search));
+    const phone = normalizePhone(filter.search);
     conditions.push(or(
-      ilike(students.fullName, pattern),
-      ilike(students.phone, pattern),
-      ilike(students.email, pattern),
+      sql`rvpy_search_text(${students.fullName}) like ${pattern}`,
+      sql`rvpy_search_text(${students.email}) like ${pattern}`,
+      isPhoneSearch(filter.search) && /^[0-9]+$/.test(phone) ? sql`${sql.raw(NORMALIZED_PHONE_SQL)} like ${studentSearchPattern(phone)}` : undefined,
       ilike(students.code, pattern),
     )!);
   }
@@ -50,17 +61,21 @@ export function buildStudentConditions(user: SessionUser, filter: ParsedStudentF
 
 /** Latest call note: the only recorded consultant contact. */
 const lastContactSql = sql`(select max(${callNotes.createdAt}) from ${callNotes} where ${callNotes.studentId} = ${students.id})`;
+const nextActionSql = sql`(select ${callNotes.nextActionAt} from ${callNotes} where ${callNotes.studentId} = ${students.id} order by ${callNotes.createdAt} desc, ${callNotes.id} desc limit 1)`;
 
 function followUpCutoff(now = new Date()): Date {
   return new Date(businessDayStart(now).getTime() - (FOLLOW_UP_AFTER_DAYS - 1) * 86_400_000);
 }
 
 /** Active leads only; "overdue" means the last note is at least FOLLOW_UP_AFTER_DAYS business days old. */
-function followUpCondition(kind: "uncontacted" | "overdue"): SQL {
+export function followUpCondition(kind: "uncontacted" | "overdue" | "due", now = new Date()): SQL {
   const active = inArray(students.status, [...ACTIVE_STATUSES]);
   const noNote = sql`${lastContactSql} is null`;
-  if (kind === "uncontacted") return and(active, noNote)!;
-  return and(active, sql`${lastContactSql} < ${followUpCutoff().toISOString()}::timestamptz`)!;
+  const noSchedule = sql`${nextActionSql} is null`;
+  if (kind === "uncontacted") return and(active, noSchedule, noNote, isNull(students.archivedAt))!;
+  const overdue = sql`${lastContactSql} < ${followUpCutoff(now).toISOString()}::timestamptz`;
+  if (kind === "overdue") return and(active, noSchedule, overdue, isNull(students.archivedAt))!;
+  return and(active, isNull(students.archivedAt), or(sql`${nextActionSql} <= ${now.toISOString()}::timestamptz`, and(noSchedule, or(noNote, overdue))))!;
 }
 
 const summarySelection = {
@@ -75,15 +90,22 @@ const summarySelection = {
   sourceName: adSources.name,
   signedUpAt: students.signedUpAt,
   lastContactAt: sql<Date | string | null>`${lastContactSql}`,
+  nextActionAt: sql<Date | string | null>`${nextActionSql}`,
+  archivedAt: students.archivedAt,
+  archiveReason: students.archiveReason,
+  droppedReason: sql<StudentSummary["droppedReason"]>`(select reason from student_status_events where student_id = ${students.id} and kind = 'status' and to_status = 'dropped' order by created_at desc, id desc limit 1)`,
+  droppedNote: sql<string | null>`(select note from student_status_events where student_id = ${students.id} and kind = 'status' and to_status = 'dropped' order by created_at desc, id desc limit 1)`,
 };
 
 function toSummary(row: {
   id: string; code: string; fullName: string; phone: string; email: string | null;
   status: StudentSummary["status"]; sourceId: string; sourceCode: string; sourceName: string; signedUpAt: Date;
   lastContactAt: Date | string | null;
+  nextActionAt?: Date | string | null; archivedAt?: Date | null;
 }): StudentSummary {
   // The raw subquery is not decoded by the column mapper, so accept a string or a Date.
-  return { ...row, signedUpAt: row.signedUpAt.toISOString(), lastContactAt: row.lastContactAt ? new Date(row.lastContactAt).toISOString() : null };
+  return { ...row, signedUpAt: row.signedUpAt.toISOString(), lastContactAt: row.lastContactAt ? new Date(row.lastContactAt).toISOString() : null,
+    nextActionAt: row.nextActionAt ? new Date(row.nextActionAt).toISOString() : null, archivedAt: row.archivedAt?.toISOString() ?? null };
 }
 
 function orderFor(filter: ParsedStudentFilter): SQL[] {
@@ -93,9 +115,11 @@ function orderFor(filter: ParsedStudentFilter): SQL[] {
     fullName: students.fullName,
     status: students.status,
     lastContactAt: sql`${lastContactSql}`,
+    nextActionAt: sql`${nextActionSql}`,
   }[filter.sort];
   // Never-contacted leads surface first when sorting by the oldest contact.
   const nulls = filter.sort === "lastContactAt" ? (dir === "asc" ? sql` nulls first` : sql` nulls last`) : sql``;
+  if (filter.sort === "nextActionAt") return [sql`${nextActionSql} ${dir === "asc" ? sql`asc` : sql`desc`} nulls last`, sql`${lastContactSql} asc nulls first`, asc(students.signedUpAt), asc(students.id)];
   return [sql`${column} ${dir === "asc" ? sql`asc` : sql`desc`}${nulls}`, desc(students.signedUpAt), asc(students.id)];
 }
 
@@ -110,10 +134,62 @@ export async function getStudentSources(user: SessionUser): Promise<StudentList[
     .from(adSources).where(sourceScope(user)).orderBy(asc(adSources.code));
 }
 
+/** One grouped query supplies chips and the due quick view with their own filter omitted. */
+export async function getStudentFacets(user: SessionUser, input: StudentFilter) {
+  assertCanView(user);
+  const filter = studentFilterSchema.parse(input);
+  const base = buildStudentConditions(user, { ...filter, status: undefined, followUp: undefined });
+  const groups = await db.select({ status: students.status,
+    total: sql<number>`count(*) filter (where ${filter.followUp ? followUpCondition(filter.followUp) : sql`true`})`,
+    due: sql<number>`count(*) filter (where ${followUpCondition("due")} and ${filter.status ? eq(students.status, filter.status) : sql`true`})`,
+  }).from(students).where(and(...base)).groupBy(students.status);
+  const counts = Object.fromEntries(STUDENT_STATUSES.map(status => [status, Number(groups.find(group => group.status === status)?.total ?? 0)])) as Record<StudentSummary["status"], number>;
+  return { counts, dueCount: groups.reduce((total, group) => total + Number(group.due), 0) };
+}
+
+/** Group only the rendered IDs for trial progress; ownership is repeated on every join. */
+export async function decoratePageStudents(user: SessionUser, rows: StudentSummary[]): Promise<StudentSummary[]> {
+  assertCanView(user);
+  if (!rows.length) return rows;
+  const ids = rows.map(row => row.id);
+  const trialRows = await db.select({ id: students.id, group1At: students.group1At, group2At: students.group2At, softwareReadyAt: students.softwareReadyAt,
+    enrollmentStatus: enrollments.status, trialStartedAt: enrollments.trialStartedAt, trialExpiresAt: enrollments.trialExpiresAt,
+    plan: sql<number>`count(${studyPlanLessons.id}) filter (where ${studyPlanLessons.trialOrder} in (1,2,3))`,
+    confirmed: sql<number>`count(${studyPlanLessons.id}) filter (where ${studyPlanLessons.trialOrder} in (1,2,3) and ${studyPlanLessons.completedAt} is not null)`,
+  }).from(students).leftJoin(enrollments, eq(enrollments.studentId, students.id)).leftJoin(studyPlanLessons, eq(studyPlanLessons.enrollmentId, enrollments.id))
+    .where(and(inArray(students.id, ids), inArray(students.status, ["trial", "enrolled"]), studentScope(user, "management")))
+    .groupBy(students.id, enrollments.id);
+  const duplicatePhones = new Set<string>();
+  if (isAdmin(user)) {
+    const normalized = sql<string>`${sql.raw(NORMALIZED_PHONE_SQL)}`;
+    const groups = await db.select({ phone: normalized, total: count() }).from(students)
+      .where(and(isNull(students.archivedAt), studentScope(user, "management"), inArray(normalized, rows.map(row => normalizePhone(row.phone)))))
+      .groupBy(normalized).having(sql`count(*) > 1`);
+    for (const group of groups) duplicatePhones.add(group.phone);
+  }
+  return rows.map(row => {
+    const trial = trialRows.find(item => item.id === row.id);
+    const end = trial?.trialExpiresAt ?? (trial?.trialStartedAt ? new Date(trial.trialStartedAt.getTime() + 9 * 86_400_000) : null);
+    return { ...row, ...(isAdmin(user) ? { duplicatePhone: !row.archivedAt && duplicatePhones.has(normalizePhone(row.phone)) } : {}),
+      trial: trial ? { daysLeft: end ? Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86_400_000)) : null,
+        checklist: [trial.group1At, trial.group2At, trial.softwareReadyAt].filter(Boolean).length,
+        confirmed: Number(trial.confirmed), hasPlan: trial.enrollmentStatus === "active" && Number(trial.plan) === 3 } : null };
+  });
+}
+
+/** A bounded, scoped selection snapshot; status changes compare each returned status again under lock. */
+export async function selectMatchingStudents(user: SessionUser, input: StudentFilter) {
+  assertCanView(user);
+  const filter = studentFilterSchema.parse(input);
+  assertDatabaseSourceId(filter.sourceId);
+  return db.select({ id: students.id, status: students.status }).from(students)
+    .where(and(...buildStudentConditions(user, filter))).orderBy(...orderFor(filter)).limit(100);
+}
+
 /** A few scoped aggregate queries instead of loading every lead. */
 export async function getStudentOverview(user: SessionUser): Promise<StudentOverview> {
   assertCanView(user);
-  const scope = studentScope(user, "management");
+  const scope = and(studentScope(user, "management"), isNull(students.archivedAt));
   const now = new Date();
   const today = businessDayStart(now);
   const weekStart = new Date(today.getTime() - 6 * 86_400_000);
@@ -163,18 +239,23 @@ export async function getStudentKanban(user: SessionUser, input: StudentFilter):
     sourceCode: sql<string>`${adSources.code}`.as("source_code"),
     sourceName: sql<string>`${adSources.name}`.as("source_name"),
     lastContactAt: sql<Date | string | null>`${lastContactSql}`.as("last_contact_at"),
+    nextActionAt: sql<Date | string | null>`${nextActionSql}`.as("next_action_at"),
+    droppedReason: summarySelection.droppedReason.as("dropped_reason"),
+    droppedNote: summarySelection.droppedNote.as("dropped_note"),
     rank: sql<number>`row_number() over (partition by ${students.status} order by ${students.signedUpAt} desc, ${students.id} asc)`.as("status_rank"),
   }).from(students).innerJoin(adSources, eq(students.sourceId, adSources.id)).where(where).as("ranked_students");
   const [groups, rows] = await Promise.all([
     db.select({ status: students.status, total: count() }).from(students).where(where).groupBy(students.status),
     db.select({ id: ranked.id, code: ranked.code, fullName: ranked.fullName, phone: ranked.phone, email: ranked.email,
-      status: ranked.status, sourceId: ranked.sourceId, sourceCode: ranked.sourceCode, sourceName: ranked.sourceName, signedUpAt: ranked.signedUpAt, lastContactAt: ranked.lastContactAt })
+      status: ranked.status, sourceId: ranked.sourceId, sourceCode: ranked.sourceCode, sourceName: ranked.sourceName, signedUpAt: ranked.signedUpAt, lastContactAt: ranked.lastContactAt,
+      nextActionAt: ranked.nextActionAt, archivedAt: ranked.archivedAt, archiveReason: ranked.archiveReason, droppedReason: ranked.droppedReason, droppedNote: ranked.droppedNote })
       .from(ranked).where(lte(ranked.rank, 100)).orderBy(desc(ranked.signedUpAt), asc(ranked.id)),
   ]);
+  const summaries = await decoratePageStudents(user, rows.map(toSummary));
   return { columns: STUDENT_STATUSES.map((status) => ({
     status,
     count: Number(groups.find((group) => group.status === status)?.total ?? 0),
-    rows: rows.filter((row) => row.status === status).map(toSummary),
+    rows: summaries.filter((row) => row.status === status),
   })) };
 }
 
@@ -186,7 +267,7 @@ export async function listStudents(user: SessionUser, input: StudentFilter): Pro
   const where = and(...conditions);
   const offset = (filter.page - 1) * filter.pageSize;
 
-  const [rows, totalRows, sources] = await Promise.all([
+  const [rows, totalRows, sources, facets] = await Promise.all([
     db.select(summarySelection).from(students)
       .innerJoin(adSources, eq(students.sourceId, adSources.id))
       .where(where)
@@ -195,14 +276,16 @@ export async function listStudents(user: SessionUser, input: StudentFilter): Pro
     db.select({ value: count() }).from(students)
       .where(where),
     getStudentSources(user),
+    getStudentFacets(user, filter),
   ]);
 
   return {
-    rows: rows.map(toSummary),
+    rows: await decoratePageStudents(user, rows.map(toSummary)),
     total: Number(totalRows[0]?.value ?? 0),
     page: filter.page,
     pageSize: filter.pageSize,
     sources,
+    ...facets,
   };
 }
 
@@ -245,6 +328,7 @@ export async function getStudent(user: SessionUser, id: string): Promise<Student
       fromStatus: studentStatusEvents.fromStatus,
       toStatus: studentStatusEvents.toStatus,
       note: studentStatusEvents.note,
+      reason: studentStatusEvents.reason, kind: studentStatusEvents.kind, data: studentStatusEvents.data,
       createdAt: studentStatusEvents.createdAt,
     }).from(studentStatusEvents)
       .where(and(eq(studentStatusEvents.studentId, id), visibleStudent))
@@ -254,6 +338,8 @@ export async function getStudent(user: SessionUser, id: string): Promise<Student
       body: callNotes.body,
       authorName: users.name,
       createdAt: callNotes.createdAt,
+      channel: callNotes.channel, outcome: callNotes.outcome, nextActionAt: callNotes.nextActionAt,
+      editedAt: callNotes.editedAt, authorId: callNotes.authorId,
     }).from(callNotes)
       .leftJoin(users, eq(callNotes.authorId, users.id))
       .where(and(eq(callNotes.studentId, id), visibleStudent))
@@ -270,6 +356,8 @@ export async function getStudent(user: SessionUser, id: string): Promise<Student
     zaloName: row.zaloName,
     signupAnswers: row.signupAnswers,
     timeline: timeline.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
-    notes: notes.map((note) => ({ ...note, createdAt: note.createdAt.toISOString() })),
+    notes: notes.map(({ authorId, ...note }) => ({ ...note, createdAt: note.createdAt.toISOString(),
+      nextActionAt: note.nextActionAt?.toISOString() ?? null, editedAt: note.editedAt?.toISOString() ?? null,
+      canEdit: !row.archivedAt && canCorrectContactNote(note.createdAt, authorId, user.id) })),
   };
 }

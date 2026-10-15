@@ -1,12 +1,33 @@
 import "server-only";
+import { connection } from "next/server";
 import { studentFilterSchema, studentIdSchema, type StudentDetail, type StudentFilter, type StudentList, type StudentSummary, type StudentOverview, type StudentKanban } from "@/lib/schemas/student";
 import { STUDENT_STATUSES } from "@/lib/constants";
 import { USE_MOCK, requirePermission } from "@/server/auth/session";
+
+export async function getPhoneMatches(phone: string) {
+  const user = await requirePermission("students.view");
+  if (USE_MOCK) return (await import("@/mocks/students")).mockPhoneMatches(user, phone);
+  return (await import("@/server/queries/students")).findPhoneMatches(user, phone);
+}
 
 export async function getStudentSources(): Promise<StudentList["sources"]> {
   const user = await requirePermission("students.view");
   if (USE_MOCK) return (await import("@/mocks/students")).mockStudentSources(user);
   return (await import("@/server/queries/students")).getStudentSources(user);
+}
+
+export async function getStudentFacets(input: StudentFilter) {
+  const user = await requirePermission("students.view");
+  // Facet clocks are request-time values, including during partial prefetch validation.
+  await connection();
+  if (USE_MOCK) return (await import("@/mocks/students")).mockStudentFacets(user, input);
+  return (await import("@/server/queries/students")).getStudentFacets(user, input);
+}
+
+export async function selectMatchingStudents(input: StudentFilter) {
+  const user = await requirePermission("students.edit");
+  if (USE_MOCK) return (await import("@/mocks/students")).mockExportStudents(user, input).slice(0, 100).map(({ id, status }) => ({ id, status }));
+  return (await import("@/server/queries/students")).selectMatchingStudents(user, input);
 }
 
 export async function getStudentOverview(): Promise<StudentOverview> {

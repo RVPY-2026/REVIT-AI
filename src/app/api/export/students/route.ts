@@ -3,13 +3,14 @@ import { studentFilterSchema, studentIdSchema } from "@/lib/schemas/student";
 import { USE_MOCK } from "@/lib/runtime-mode";
 import { z } from "zod";
 import { exportStudents } from "@/lib/api/students";
+import { isAdmin } from "@/lib/auth/permissions";
 import { requirePermission } from "@/server/auth/session";
 import { createStudentsWorkbook } from "./workbook";
 
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 export async function GET(request: Request) {
-  await requirePermission("students.export");
+  const user = await requirePermission("students.export");
 
   const params = new URL(request.url).searchParams;
   const rawFilter: Record<string, string> = {};
@@ -30,6 +31,8 @@ export async function GET(request: Request) {
   if (!USE_MOCK && parsed.data.sourceId && !z.uuid().safeParse(parsed.data.sourceId).success) {
     return NextResponse.json({ error: "Bộ lọc chưa hợp lệ." }, { status: 400 });
   }
+
+  if (parsed.data.archived && !isAdmin(user)) return NextResponse.json({ error: "Chỉ quản trị viên được xem hồ sơ đã lưu trữ." }, { status: 403 });
 
   const all = await exportStudents(parsed.data);
   const rows = ids ? all.filter((row) => ids.includes(row.id)) : all;

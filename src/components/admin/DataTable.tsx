@@ -24,7 +24,7 @@ export function DataTable<TData extends RowData>({
 
   return (
     <>
-      <div tabIndex={0} aria-label={ariaLabel} className="hidden max-h-[70dvh] overflow-auto rounded-2xl border border-border focus-visible:ring-2 focus-visible:ring-ring md:block">
+      <div tabIndex={0} aria-label={ariaLabel} className="relative hidden min-w-0 max-h-[70dvh] overflow-auto rounded-2xl border border-border focus-visible:ring-2 focus-visible:ring-ring md:block">
         <table aria-label={ariaLabel} className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (
