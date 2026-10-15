@@ -14,7 +14,7 @@ export async function listAdSources(user: SessionUser, conn: Db = db): Promise<A
   const month = sql<string>`to_char(${students.signedUpAt} at time zone 'Asia/Ho_Chi_Minh', 'YYYY-MM')`;
   const stats = await conn.select({ sourceId: students.sourceId, month, leads: count(),
     enrolled: sql<number>`count(*) filter (where ${students.status} = 'enrolled')`.mapWith(Number),
-  }).from(students).where(studentScope(user, "management")).groupBy(students.sourceId, month);
+  }).from(students).where(and(studentScope(user, "management"), isNull(students.archivedAt))).groupBy(students.sourceId, month);
   const now = new Date();
   const current = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit" }).format(now);
   const months = Array.from({ length: 6 }, (_, i) => {

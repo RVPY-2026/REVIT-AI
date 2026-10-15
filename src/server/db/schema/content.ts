@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { studentStatusEnum } from "./enums";
 import { users } from "./users";
 
@@ -27,4 +27,9 @@ export const auditLog = pgTable("audit_log", {
   entityId: uuid(),
   data: jsonb().$type<Record<string, unknown>>(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-}).enableRLS();
+}, (t) => [
+  index("audit_log_created_id_index").on(t.createdAt.desc(), t.id.desc()),
+  index("audit_log_entity_id_index").on(t.entity, t.entityId),
+  index("audit_log_action_created_index").on(t.action, t.createdAt.desc()),
+  index("audit_log_actor_created_index").on(t.actorId, t.createdAt.desc()),
+]).enableRLS();

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import * as orm from "drizzle-orm";
@@ -13,6 +12,7 @@ import * as leadSchema from "../src/lib/schemas/lead";
 import * as importHelpers from "../src/lib/import-sheet";
 import { ZALO_OUTBOX_CRON_COMMAND } from "../src/lib/zalo-cron";
 import { loadServerModule } from "./helpers/server-module";
+import { readMigrations } from "./helpers/db-migrations";
 import type { Db } from "../src/server/db";
 import type { ParsedRow } from "../src/server/import/student-sheet";
 
@@ -21,8 +21,7 @@ test("signup ownership, renewal, shared limits and CRM conflict regressions on i
   const conn = drizzle(pg, { schema, casing: "snake_case" });
   const db = conn as unknown as Db;
   try {
-    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
+    for (const migration of await readMigrations()) await pg.exec(migration.sql);
     await conn.insert(schema.adSources).values({ code: "R", name: "Fixture source" });
     const [actor] = await conn.insert(schema.users).values({ email: "review-admin@example.invalid", name: "Fixture admin" }).returning();
     const admin: permissions.SessionUser = { id: actor.id, email: actor.email, name: actor.name, avatarUrl: null,

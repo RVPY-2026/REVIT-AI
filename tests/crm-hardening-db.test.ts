@@ -20,6 +20,7 @@ import * as statusSchema from "../src/lib/schemas/student-status";
 import * as noteSchema from "../src/lib/schemas/student-note";
 import * as managementSchema from "../src/lib/schemas/student-management";
 import { loadServerModule } from "./helpers/server-module";
+import { readMigrations } from "./helpers/db-migrations";
 import type { Db } from "../src/server/db";
 
 test("CRM hardening runs actual actions and queries against isolated migrated Postgres", async t => {
@@ -29,8 +30,7 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
   const invalidations: string[] = [];
   let caller: permissions.SessionUser;
   try {
-    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
+    for (const migration of await readMigrations()) await pg.exec(migration.sql);
     const [actor, owner] = await connection.insert(schema.users).values([
       { email: "crm-admin@example.invalid", name: "Fixture admin" }, { email: "crm-sale@example.invalid", name: "Fixture sale" },
     ]).returning();

@@ -13,7 +13,19 @@ import { auditActionLabel, auditValue } from "../src/lib/audit-labels";
 import * as leadSchema from "../src/lib/schemas/lead";
 import * as studentCode from "../src/lib/student-code";
 import { loadServerModule } from "./helpers/server-module";
+import { readMigrations } from "./helpers/db-migrations";
 import type { Db } from "../src/server/db";
+
+test("every migration and generated snapshot form one ordered dependency chain", async () => {
+  let previous = "00000000-0000-0000-0000-000000000000";
+  const migrations = await readMigrations();
+  for (const migration of migrations) {
+    const prefix = migration.name.slice(0, 4);
+    const snapshot = JSON.parse(await readFile(new URL(`../src/server/db/migrations/meta/${prefix}_snapshot.json`, import.meta.url), "utf8"));
+    assert.equal(snapshot.prevId, previous, migration.name); previous = snapshot.id;
+  }
+  assert.ok(migrations.some((m) => m.name === "0007_audit_log_indexes.sql"));
+});
 
 test("system permissions deny sales, students and public accounts", () => {
   for (const role of ["admin", "sale", "student", "user"] as const)
@@ -55,10 +67,11 @@ test("numeric and international audit contacts are masked without altering UUIDs
   assert.doesNotMatch(privacy.maskPrivateText("0901234567 123456789"), /0901234567|123456789/);
 });
 test("sources, audit SQL and queue retries run on isolated Postgres", async (t) => {
-  const pg = await PGlite.create(); const conn = drizzle(pg, { schema, casing: "snake_case" }); const db = conn as unknown as Db;
+  let lastQuery = { query: "", params: [] as unknown[] };
+  const pg = await PGlite.create(); const conn = drizzle(pg, { schema, casing: "snake_case",
+    logger: { logQuery(query, params) { lastQuery = { query, params }; } } }); const db = conn as unknown as Db;
   try {
-    for (const name of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${name}.sql`, import.meta.url), "utf8"));
+    for (const migration of await readMigrations()) await pg.exec(migration.sql);
     const security = await pg.query<{ relrowsecurity: boolean }>("select relrowsecurity from pg_class where relname in ('ad_sources','audit_log','zalo_bot_outbox')");
     assert.equal(security.rows.length, 3); assert.ok(security.rows.every((r) => r.relrowsecurity));
     assert.equal((await pg.query("select * from pg_policies where tablename in ('ad_sources','audit_log','zalo_bot_outbox')")).rows.length, 0);
@@ -76,6 +89,9 @@ test("sources, audit SQL and queue retries run on isolated Postgres", async (t) 
     const scope = await loadServerModule<typeof import("../src/server/auth/scope")>("src/server/auth/scope.ts", common);
     const deps = { ...common, "@/server/audit": audit, "@/server/auth/scope": scope, "@/lib/schemas/ad-source": sourceSchema,
       "@/lib/schemas/admin-viewers": viewerSchema, "@/lib/audit-privacy": privacy };
+    const phones = await loadServerModule<typeof import("../src/server/phone-matches")>("src/server/phone-matches.ts", {
+      ...deps, "@/lib/schemas/lead": leadSchema, "@/lib/phone": await import("../src/lib/phone"),
+    });
     const records = await loadServerModule<typeof import("../src/server/ad-source-record")>("src/server/ad-source-record.ts", deps);
     const queries = await loadServerModule<typeof import("../src/server/queries/ad-sources")>("src/server/queries/ad-sources.ts", deps);
     const logs = await loadServerModule<typeof import("../src/server/queries/audit-log")>("src/server/queries/audit-log.ts", deps);
@@ -105,6 +121,30 @@ test("sources, audit SQL and queue retries run on isolated Postgres", async (t) 
     });
     const [student] = await conn.insert(schema.students).values({ sourceId, code: "A2610001", codeMonth: "2610", seq: 1,
       fullName: "Fixture learner", phone: "0901234567", signedUpAt: new Date() }).returning();
+    await t.test("archived rows are excluded from monthly, lifetime, enrolled, conversion and all six cohorts", async () => {
+      const now = new Date();
+      const current = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit" }).format(now);
+      const [year, month] = current.split("-").map(Number);
+      const dates = Array.from({ length: 6 }, (_, i) => new Date(Date.UTC(year, month - 1 - i, 10)));
+      await conn.insert(schema.students).values(dates.map((signedUpAt, i) => ({ sourceId, code: `A260900${i + 1}`, codeMonth: "2609", seq: i + 1,
+        fullName: "Archived fixture", phone: `090122200${i}`, status: "enrolled" as const, signedUpAt, archivedAt: now, archiveReason: "test" as const })));
+      const summary = (await queries.listAdSources(admin)).find((s) => s.id === sourceId)!;
+      assert.equal(summary.monthLeads, 1); assert.equal(summary.total, 1); assert.equal(summary.enrolled, 0); assert.equal(summary.conversion, 0);
+      for (const cohort of summary.months) {
+        assert.equal(cohort.leads, cohort.month === current ? 1 : 0);
+        assert.equal(cohort.total, cohort.month === current ? 1 : 0); assert.equal(cohort.enrolled, 0);
+      }
+    });
+    await t.test("an archived-only source has null conversion and transfers with zero active lead count", async () => {
+      const id = (await create(admin, "E", accounts[1].id)).id;
+      await conn.insert(schema.students).values({ sourceId: id, code: "E2610001", codeMonth: "2610", seq: 1,
+        fullName: "Archived-only fixture", phone: "0901222999", status: "enrolled", archivedAt: new Date(), archiveReason: "test" });
+      const summary = (await queries.listAdSources(admin)).find((s) => s.id === id)!;
+      assert.equal(summary.total, 0); assert.equal(summary.enrolled, 0); assert.equal(summary.monthLeads, 0); assert.equal(summary.conversion, null);
+      assert.ok(summary.months.every((m) => m.total === 0 && m.leads === 0 && m.enrolled === 0));
+      await conn.transaction((tx) => records.updateSourceRecord(tx as never, admin, { id, name: "Fixture E", ownerUserId: accounts[2].id,
+        expectedName: "Fixture E", expectedOwnerUserId: accounts[1].id, active: true, expectedActive: true, expectedLeadCount: 0 }));
+    });
     await t.test("owner changes require exact lead confirmation, reject stale edits and change studentScope", async () => {
       const edit = { id: sourceId, name: "Fixture A", ownerUserId: accounts[2].id, active: true,
         expectedName: "Fixture A", expectedOwnerUserId: accounts[1].id, expectedActive: true };
@@ -114,7 +154,7 @@ test("sources, audit SQL and queue retries run on isolated Postgres", async (t) 
       await assert.rejects(conn.transaction((tx) => records.updateSourceRecord(tx as never, admin, edit)), /người khác/);
       const visible = async (index: number) => {
         const owned = await conn.select({ id: schema.adSources.id }).from(schema.adSources).where(orm.eq(schema.adSources.ownerUserId, accounts[index].id));
-        return conn.select({ id: schema.students.id }).from(schema.students).where(scope.studentScope(user(index, ["sale"], owned.map((s) => s.id)), "management"));
+        return conn.select({ id: schema.students.id }).from(schema.students).where(orm.and(orm.isNull(schema.students.archivedAt), scope.studentScope(user(index, ["sale"], owned.map((s) => s.id)), "management")));
       };
       assert.equal((await visible(1)).length, 0); assert.equal((await visible(2)).length, 1);
       const summary = (await queries.listAdSources(admin)).find((s) => s.id === sourceId)!;
@@ -127,6 +167,7 @@ test("sources, audit SQL and queue retries run on isolated Postgres", async (t) 
       const cookieStore = { get: () => undefined, set: () => undefined };
       let tokenSequence = 0;
       const actions = await loadServerModule<typeof import("../src/server/actions/leads")>("src/server/actions/leads.ts", { ...deps,
+        "@/server/phone-matches": phones,
         "@/lib/runtime-mode": { USE_MOCK: false }, "@/lib/schemas/lead": leadSchema, "@/server/auth/session": { requirePermission: async () => admin },
         "@/server/env": { serverEnv: {} }, "@/server/lead-record": leadRecords, "next/cache": { revalidatePath: () => undefined },
         "next/headers": { cookies: async () => cookieStore, headers: async () => new Headers() },
@@ -192,6 +233,42 @@ test("sources, audit SQL and queue retries run on isolated Postgres", async (t) 
       assert.equal(pending.attempts, 0); assert.equal(pending.lastError, null);
       assert.equal((await logs.listAuditLog(admin, { page: 1, action: "zalo.retried" })).total, 1);
       assert.equal((await conn.select().from(schema.zaloBotOutbox).where(orm.eq(schema.zaloBotOutbox.id, items[52].id)))[0].status, "sent");
+    });
+    await t.test("audit count and offset stay bounded at 10,000 newest matches on a 12,050-row fixture", async () => {
+      await pg.query(`insert into audit_log(actor_id, action, entity, entity_id, data, created_at)
+        select $1, 'scale.bulk', 'fixture', $2, jsonb_build_object('before','new','after','consulting'),
+        '2026-01-01'::timestamptz + n * interval '1 second' from generate_series(1,12050) n`, [admin.id, student.id]);
+      await pg.exec("ANALYZE audit_log");
+      const started = performance.now();
+      const first = await logs.listAuditLog(admin, { page: 1, action: "scale.bulk" });
+      const elapsed = performance.now() - started;
+      assert.equal(first.total, 10000); assert.equal(first.totalCapped, true); assert.equal(first.hasNext, true); assert.equal(first.rows.length, 50);
+      assert.ok(first.rows.every((row) => row.action === "scale.bulk"));
+      const actual = lastQuery;
+      assert.match(actual.query, /limit \$\d+/);
+      assert.ok(actual.params.includes(10001));
+      const plan = await pg.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${actual.query}`, actual.params);
+      const json = JSON.stringify(plan.rows);
+      // Planner choices vary between PGlite/Postgres versions; record the actual
+      // plan and timing rather than force an index or a brittle fixed node tree.
+      t.diagnostic(JSON.stringify({ auditRows: 12050, elapsedMs: Math.round(elapsed), plan: plan.rows }));
+      assert.match(json, /audit_log_(created_id|action_created)_index/);
+      const last = await logs.listAuditLog(admin, { page: 99999, action: "scale.bulk" });
+      assert.equal(last.page, 200); assert.equal(last.rows.length, 50); assert.equal(last.hasNext, false);
+      assert.equal(first.rows.some((a) => last.rows.some((b) => a.id === b.id)), false);
+      assert.ok(new Date(first.rows[49].createdAt) > new Date(last.rows[0].createdAt));
+      const filtered = await logs.listAuditLog(admin, { page: 1, action: "scale.bulk", from: "2026-01-02", to: "2026-01-02" });
+      assert.equal(filtered.total, 0); assert.equal(filtered.totalCapped, false); assert.equal(filtered.page, 1); assert.equal(filtered.hasNext, false);
+    });
+    await t.test("audit distinguishes exactly 10,000 matches from the 10,001 overflow sentinel", async () => {
+      await pg.query(`insert into audit_log(actor_id, action, entity, created_at)
+        select $1, 'scale.boundary', 'fixture', '2026-02-01'::timestamptz + n * interval '1 second'
+        from generate_series(1,10000) n`, [admin.id]);
+      const exact = await logs.listAuditLog(admin, { page: 200, action: "scale.boundary", actor: "Fixture admin", entity: "fixture" });
+      assert.equal(exact.total, 10000); assert.equal(exact.totalCapped, false); assert.equal(exact.hasNext, false); assert.equal(exact.rows.length, 50);
+      await conn.insert(schema.auditLog).values({ actorId: admin.id, action: "scale.boundary", entity: "fixture" });
+      const capped = await logs.listAuditLog(admin, { page: 1, action: "scale.boundary" });
+      assert.equal(capped.total, 10000); assert.equal(capped.totalCapped, true); assert.equal(capped.hasNext, true);
     });
   } finally { await pg.close(); }
 });

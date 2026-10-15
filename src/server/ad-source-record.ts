@@ -39,7 +39,7 @@ export async function updateSourceRecord(tx: Tx, user: SessionUser, input: unkno
   if (row.ownerUserId !== data.ownerUserId) {
     await checkOwner(tx, data.ownerUserId);
     const [stats] = await tx.select({ total: count() }).from(students)
-      .where(and(eq(students.sourceId, row.id), studentScope(user, "management")));
+      .where(and(eq(students.sourceId, row.id), studentScope(user, "management"), isNull(students.archivedAt)));
     if (stats.total > 0 && (!data.confirmOwnerChange || data.expectedLeadCount !== stats.total))
       throw new SourceError("Số hồ sơ đã thay đổi hoặc chưa được xác nhận. Bạn tải lại nguồn và xác nhận chuyển hồ sơ.");
   }

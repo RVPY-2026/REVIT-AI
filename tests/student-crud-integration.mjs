@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { readMigrations } from "./helpers/db-migrations.ts";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import vm from "node:vm";
@@ -49,11 +50,7 @@ test("actual student Server Actions enforce scope, transact, audit, and stop in 
   };
 
   try {
-    await pg.exec(await readFile(new URL("../src/server/db/migrations/0000_init.sql", import.meta.url), "utf8"));
-    await pg.exec(await readFile(new URL("../src/server/db/migrations/0001_public_user_role.sql", import.meta.url), "utf8"));
-
-    for (const migration of ["0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
-      await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
+    for (const migration of await readMigrations()) await pg.exec(migration.sql);
 
     const ids = (await pg.query(`
       INSERT INTO users(email,name) VALUES

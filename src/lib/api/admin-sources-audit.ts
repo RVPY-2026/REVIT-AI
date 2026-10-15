@@ -19,8 +19,10 @@ export async function getAuditLog(input: ViewerFilter) {
   const rows = mockAuditRows.filter((r) => (!filter.actor || r.actor.includes(filter.actor)) && (!filter.action || r.action === filter.action)
     && (!filter.entity || r.entity === filter.entity) && (!filter.search || r.entityId?.includes(filter.search))
     && (!dates.start || new Date(r.createdAt) >= dates.start) && (!dates.end || new Date(r.createdAt) < dates.end));
-  const page = Math.min(filter.page, Math.max(1, Math.ceil(rows.length / 50)));
-  return { rows: rows.slice((page - 1) * 50, page * 50), total: rows.length, page };
+  const total = Math.min(rows.length, 10000);
+  const pages = Math.max(1, Math.ceil(total / 50));
+  const page = Math.min(filter.page, pages);
+  return { rows: rows.slice((page - 1) * 50, page * 50), total, page, totalCapped: rows.length > 10000, hasNext: page < pages };
 }
 export async function getZaloQueue(input: ViewerFilter) {
   const user = await requirePermission("zalo.view");
