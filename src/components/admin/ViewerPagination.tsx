@@ -1,0 +1,14 @@
+"use client";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useTransition } from "react";
+import { Button } from "@/components/ui/button";
+export function ViewerPagination({ total, page, size = 50 }: { total: number; page: number; size?: number }) {
+  const router = useRouter(); const params = useSearchParams(); const path = usePathname();
+  const [pending, start] = useTransition();
+  const pages = Math.max(1, Math.ceil(total / size));
+  function go(next: number) { const p = new URLSearchParams(params); p.set("page", String(next)); start(() => router.push(`${path}?${p}`, { scroll: false })); }
+  return <nav className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Phân trang">
+    <p className="text-sm text-muted-foreground" aria-live="polite">{pending ? "Đang tải trang…" : `Đang hiển thị ${total ? (page - 1) * size + 1 : 0}–${Math.min(page * size, total)} trong tổng số ${total}`}</p>
+    <div className="flex gap-2"><Button className="min-h-11" variant="outline" disabled={pending || page <= 1} onClick={() => go(page - 1)}>Trang trước</Button>
+      <Button className="min-h-11" variant="outline" disabled={pending || page >= pages} onClick={() => go(page + 1)}>Trang sau</Button></div></nav>;
+}

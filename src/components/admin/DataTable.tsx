@@ -12,18 +12,20 @@ export function DataTable<TData extends RowData>({
   data,
   mobileCards,
   rowKey,
+  ariaLabel = "Danh sách học viên",
 }: {
   columns: Array<DataTableColumn<TData>>
   data: TData[]
   mobileCards: (item: TData) => ReactNode
   rowKey?: (item: TData) => string
+  ariaLabel?: string
 }) {
   const table = useTable({ features: dataTableFeatures, columns, data })
 
   return (
     <>
-      <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
-        <table className="w-full border-collapse text-left text-sm">
+      <div tabIndex={0} aria-label={ariaLabel} className="hidden max-h-[70dvh] overflow-auto rounded-2xl border border-border focus-visible:ring-2 focus-visible:ring-ring md:block">
+        <table aria-label={ariaLabel} className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
@@ -48,7 +50,7 @@ export function DataTable<TData extends RowData>({
           </tbody>
         </table>
       </div>
-      <ul className="grid gap-3 md:hidden" aria-label="Danh sách học viên">
+      <ul className="grid gap-3 md:hidden" aria-label={ariaLabel}>
         {data.map((item, index) => <li key={rowKey?.(item) ?? index}>{mobileCards(item)}</li>)}
       </ul>
     </>

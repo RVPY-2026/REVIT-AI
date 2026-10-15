@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { FileUp, LayoutDashboard, Users, MessageSquare, ShieldCheck } from "lucide-react";
+import { FileUp, LayoutDashboard, Users, MessageSquare, ShieldCheck, Megaphone, History, ListChecks } from "lucide-react";
 import { AppShell, type NavGroup } from "@/components/layout/AppShell";
 import { Input } from "@/components/ui/input";
 import { can, type SessionUser } from "@/lib/auth/permissions";
@@ -19,6 +19,9 @@ const navigationGroups = [
   ] },
   { label: "Hệ thống", items: [
     { href: "/quan-tri/phan-quyen", label: "Phân quyền", icon: ShieldCheck, permission: "roles.manage" },
+    { href: "/quan-tri/nguon-quang-cao", label: "Nguồn quảng cáo", icon: Megaphone, permission: "sources.manage" },
+    { href: "/quan-tri/nhat-ky", label: "Nhật ký hoạt động", icon: History, permission: "audit.view" },
+    { href: "/quan-tri/zalo", label: "Hàng đợi Zalo", icon: ListChecks, permission: "zalo.view" },
   ] },
 ] as const;
 

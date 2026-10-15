@@ -11,6 +11,7 @@ import { TitleBlock } from "@/components/layout/TitleBlock";
 import { CrmComponentShowcase } from "@/components/layout/CrmComponentShowcase";
 import { StudentComponentShowcase } from "@/components/layout/StudentComponentShowcase";
 import { SignupProtectionShowcase } from "@/components/public/SignupProtectionShowcase";
+import { AdminSourcesAuditShowcase } from "@/components/admin/AdminSourcesAuditShowcase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +37,7 @@ export default function UiKitPage() {
         </div>
       </header>
 
+      <Suspense><AdminSourcesAuditShowcase /></Suspense>
       <Section title="Typography" eyebrow="Lexend · Be Vietnam Pro · IBM Plex Mono">
         <h1 className="text-[40px] font-extralight tracking-[-0.015em] md:text-[56px]">
           Học Revit để <strong className="font-medium">làm được việc</strong>
