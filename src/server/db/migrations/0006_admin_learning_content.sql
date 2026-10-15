@@ -11,7 +11,7 @@ CREATE TABLE "learning_uploads" (
 	CONSTRAINT "learning_uploads_objectPath_unique" UNIQUE("object_path"),
 	CONSTRAINT "learning_uploads_size" CHECK ("learning_uploads"."size" > 0 AND "learning_uploads"."size" <= 50000000),
 	CONSTRAINT "learning_uploads_mode" CHECK ("learning_uploads"."mode" IN ('view', 'download')),
-	CONSTRAINT "learning_uploads_status" CHECK ("learning_uploads"."status" IN ('pending', 'uploaded', 'consumed', 'cancelled'))
+	CONSTRAINT "learning_uploads_status" CHECK ("learning_uploads"."status" IN ('pending', 'uploaded', 'consumed', 'cancelled', 'cleaned'))
 );
 --> statement-breakpoint
 ALTER TABLE "learning_uploads" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

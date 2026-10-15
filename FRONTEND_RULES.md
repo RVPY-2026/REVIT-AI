@@ -99,8 +99,8 @@ Theme changes transition color, background, border, and shadow values over about
   --primary-foreground: #ffffff;
   --glass: rgba(255, 255, 255, 0.72);
   --ring: #c2185b;
-  --success: #1f8a5b;
-  --warning: #b26a00;
+  --success: #187347;
+  --warning: #935700;
   --destructive: #c62828;
   --info: #2563eb;
 }
@@ -127,8 +127,10 @@ Theme changes transition color, background, border, and shadow values over about
 Gradients — use **only** in these places, never scattered across the page:
 - Marketing hero background (dark): `radial-gradient(55% 75% at 88% 8%, rgba(214,70,140,.50), transparent 62%), radial-gradient(65% 80% at 100% 100%, rgba(196,20,90,.62), transparent 62%), linear-gradient(120deg, #160a24 0%, #3b0d36 58%, #7d1048 100%)`
 - Marketing hero background (light): same shape with opacities `.20 / .22` over `#fdf9fb → #f7e8f0`.
-- Primary button: `linear-gradient(90deg, var(--primary-deep), var(--primary))`.
+- Primary button: `linear-gradient(90deg, var(--primary-button-start), var(--primary-button-end))`.
 - CTA band: `linear-gradient(110deg, #3b0d36, #a3124f 60%, #e0186c)`.
+
+Primary buttons share `--primary-button-start: #a3124f` and `--primary-button-end: #c2185b` in light and dark. White button labels retain AA contrast across the gradient; `--primary` remains the brighter link/focus accent in dark mode. Light status text uses the darker success/warning values above so outlined badges meet AA on cards. These tokens are showcased at `/ui-kit`.
 
 Status colors (`--success`, `--warning`, `--destructive`, `--info`) are for state only. Never use the accent (`--primary`) to signal state.
 
