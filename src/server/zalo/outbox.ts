@@ -1,11 +1,18 @@
 import "server-only";
-import { and, asc, eq, lt, lte, ne, notExists, or } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, lte, ne, notExists, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { serverEnv } from "@/server/env";
 import { db } from "@/server/db";
 import { zaloBotConnections, zaloBotOutbox } from "@/server/db/schema";
 import { createZaloBotClient } from "@/server/zalo/client";
 import { ZALO_ONBOARDING_MESSAGES } from "@/server/zalo/messages";
+
+/** The single reset path for profile and queue retries; delivery remains cron-owned. */
+export async function resetFailedZaloItems(tx: Tx, ids: string[]) {
+  if (!ids.length) return [];
+  return tx.update(zaloBotOutbox).set({ status: "pending", attempts: 0, availableAt: new Date(), lastError: null })
+    .where(and(inArray(zaloBotOutbox.id, ids), eq(zaloBotOutbox.status, "failed"))).returning({ id: zaloBotOutbox.id });
+}
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

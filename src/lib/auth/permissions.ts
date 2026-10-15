@@ -36,6 +36,8 @@ const PERMISSIONS = {
   "settings.manage": ["admin"],
   "roles.manage": ["admin"], // grant/revoke admin and sale on other accounts (roles-manager.ts)
   "student-area.view": ["admin", "student"],
+  "audit.view": ["admin"],
+  "zalo.view": ["admin"],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

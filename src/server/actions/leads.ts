@@ -37,7 +37,7 @@ export async function submitLeadSignup(input: LeadSignupInput): Promise<ActionRe
     const signupToken = newSignupToken();
     const row = await db.transaction(async (tx) => {
       const candidates = await tx.select({ id: adSources.id, code: adSources.code }).from(adSources)
-        .where(and(inArray(adSources.code, [sourceCode ?? DEFAULT_SOURCE, DEFAULT_SOURCE]), eq(adSources.active, true)));
+        .where(and(inArray(adSources.code, [sourceCode ?? DEFAULT_SOURCE, DEFAULT_SOURCE]), eq(adSources.active, true))).for("update");
       const source = candidates.find((s) => s.code === sourceCode) ?? candidates.find((s) => s.code === DEFAULT_SOURCE);
       if (!source) throw new Error("Default source is missing");
       // Public attribution lookup: internal ID only, never exposed to the caller.
@@ -72,7 +72,7 @@ export async function createManualLead(input: ManualLeadInput): Promise<ActionRe
     const row = await db.transaction(async (tx) => {
       const [source] = await tx.select({ id: adSources.id, code: adSources.code }).from(adSources)
         .where(and(eq(adSources.id, sourceId), eq(adSources.active, true),
-          isAdmin(user) ? undefined : eq(adSources.ownerUserId, user.id))).limit(1);
+          isAdmin(user) ? undefined : eq(adSources.ownerUserId, user.id))).for("update").limit(1);
       if (!source) return null;
       return insertLeadRecord(tx, source, lead, { ...answers, ...(facebookLink ? { facebookLink } : {}) }, user.id);
     });

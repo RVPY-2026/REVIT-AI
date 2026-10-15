@@ -7,6 +7,7 @@ import type { Db } from "@/server/db";
 import { students, users, userRoles, enrollments, studyPlanLessons, zaloBotOutbox } from "@/server/db/schema";
 import { studentScope } from "@/server/auth/scope";
 import { audit } from "@/server/audit";
+import { resetFailedZaloItems } from "@/server/zalo/outbox";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export class OnboardingError extends Error {}
@@ -89,10 +90,9 @@ export async function retryStudentZaloMessages(tx: Tx, user: SessionUser, studen
   const [student] = await tx.select({ id: students.id }).from(students)
     .where(and(eq(students.id, studentId), studentScope(user, "management"))).for("update").limit(1);
   if (!student) throw new OnboardingError("Không tìm thấy học viên.");
-  const retried = await tx.update(zaloBotOutbox).set({
-    status: "pending", attempts: 0, availableAt: new Date(), lastError: null,
-  }).where(and(eq(zaloBotOutbox.studentId, studentId), eq(zaloBotOutbox.status, "failed")))
-    .returning({ id: zaloBotOutbox.id });
+  const failed = await tx.select({ id: zaloBotOutbox.id }).from(zaloBotOutbox)
+    .where(and(eq(zaloBotOutbox.studentId, studentId), eq(zaloBotOutbox.status, "failed"))).for("update");
+  const retried = await resetFailedZaloItems(tx, failed.map((row) => row.id));
   if (retried.length) await audit(tx, {
     actorId: user.id, action: "student.zalo_messages_retried", entity: "students",
     entityId: studentId, data: { count: retried.length },
