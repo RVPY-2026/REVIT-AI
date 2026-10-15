@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Pencil } from "lucide-react"
 import { updateStudentContact } from "@/server/actions/student-contact"
+import { hasActivePhoneMatch } from "@/lib/student-phone-match"
 import { checkStudentPhone } from "@/server/actions/student-phone"
 import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning"
 import type { PhoneMatch } from "@/server/phone-matches"
@@ -47,8 +48,10 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
     try {
       const duplicateAcknowledged = confirmation?.phone === values.phone
       if (values.phone !== expected.phone) {
-        const matches = await checkStudentPhone({ phone: values.phone, excludeId: student.id })
-        if (matches.length && !duplicateAcknowledged) { setConfirmation({ phone: values.phone, matches }); return }
+        const checked = await checkStudentPhone({ phone: values.phone, excludeId: student.id })
+        if (!checked.ok) { toast.error(checked.error); return }
+        const matches = checked.data.matches
+        if (hasActivePhoneMatch(matches) && !duplicateAcknowledged) { setConfirmation({ phone: values.phone, matches }); return }
       }
       const result = await updateStudentContact({ studentId: student.id, ...values, expected, duplicateAcknowledged })
       if (!result.ok) {
@@ -86,8 +89,8 @@ export function StudentContactDialog({ student, preview = false, trigger = true,
   }
 
   return <Dialog open={dialogOpen} onOpenChange={changeOpen}>
-    {trigger && <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><Pencil aria-hidden="true" strokeWidth={1.75} />Sửa thông tin</Button></DialogTrigger>}
-    <DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
+    {trigger && <DialogTrigger asChild><Button type="button" variant="outline" size="compact"><Pencil aria-hidden="true" strokeWidth={1.75} />Sửa thông tin</Button></DialogTrigger>}
+    <DialogContent className="[&_input]:min-h-11">
       <DialogHeader>
         <DialogTitle>Sửa thông tin liên hệ</DialogTitle>
         <DialogDescription>Cập nhật họ tên, số điện thoại và email liên hệ của học viên.</DialogDescription>

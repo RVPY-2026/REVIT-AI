@@ -34,6 +34,7 @@ export function CrmComponentShowcase() {
       enrollment: { kind: "trial", status: "active", trialStartedAt: "2026-10-09T00:00:00.000Z", trialEndsAt: "2026-10-18T00:00:00.000Z" },
       lessons: [1, 2, 3].map((order) => ({ id: `mock-trial-${order}`, title: `Bài học thử ${order}`, trialOrder: order, reportedAt: order === 1 ? "2026-10-10T00:00:00.000Z" : null, completedAt: null, progressNote: order === 1 ? "Em đã hoàn thành bài tập." : null, submissionUrl: null })),
     }} />
+    <div className="flex flex-wrap gap-2"><Button size="compact">Nút gọn · cảm ứng 44px</Button><ClipboardButton text="R2610001" iconOnly label="Sao chép mẫu nút gọn" /></div>
     <CallNoteForm studentId="mock-student-1" preview />
     <DuplicatePhoneWarning matches={[{ id: "mock-student-1", code: "A2610001", fullName: "Học viên mẫu", status: "consulting", sourceCode: "A", signedUpAt: "2026-10-09T00:00:00Z" }, { otherSource: true }]} />
     <StudentManagementActions student={{ id: "mock-student-1", sourceId: "mock-source-a", archivedAt: null }} sources={[{ id: "mock-source-a", code: "A", name: "Nguồn mẫu A" }, { id: "mock-source-r", code: "R", name: "RVPY" }]} />

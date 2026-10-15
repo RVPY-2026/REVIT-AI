@@ -71,7 +71,7 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
   ))
 
   return (
-    <main className="content py-8 sm:py-10 [&_button]:min-h-11 [&_a[data-slot=button]]:min-h-11">
+    <main className="content py-8 sm:py-10">
       <Link href="/quan-tri/hoc-vien" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft aria-hidden="true" size={18} strokeWidth={1.75} />Về danh sách học viên
       </Link>
@@ -88,8 +88,8 @@ async function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
         <div className="flex flex-wrap gap-2">
           {editable && <StudentContactDialog student={student} />}
           {can(user, "students.archive") && <StudentManagementActions student={student} sources={sources} />}
-          <Button asChild variant="outline" size="sm"><a href={`tel:${student.phone}`}><Phone aria-hidden="true" strokeWidth={1.75} />Gọi điện</a></Button>
-          <Button asChild variant="outline" size="sm"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer">Mở Zalo</a></Button>
+          <Button asChild variant="outline" size="compact"><a href={`tel:${student.phone}`}><Phone aria-hidden="true" strokeWidth={1.75} />Gọi điện</a></Button>
+          <Button asChild variant="outline" size="compact"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer">Mở Zalo</a></Button>
         </div>
       </div>
       {student.archivedAt && <p role="status" className="mt-4 rounded-xl border border-warning p-3 text-sm text-warning">Đã lưu trữ · {student.archiveReason ? ARCHIVE_REASON_LABELS[student.archiveReason] : ""}. Bạn khôi phục hồ sơ trước khi sửa hoặc ghi chú.</p>}

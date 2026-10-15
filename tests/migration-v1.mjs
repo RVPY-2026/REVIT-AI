@@ -15,7 +15,7 @@ const orm = drizzle(pg, { casing: "snake_case" });
 try {
   await pg.exec(await readFile(new URL("../src/server/db/migrations/0000_init.sql", import.meta.url), "utf8"));
   assert.deepEqual((await pg.query("SELECT count(*)::int n, bool_and(relrowsecurity) rls FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'")).rows, [{ n: 16, rls: true }]);
-  for (const migration of ["0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening"])
+  for (const migration of ["0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
     await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
   const actorId = (await pg.query("INSERT INTO users(email,name) VALUES ('admin@example.com','Test admin') RETURNING id")).rows[0].id;
   const source = (await pg.query("INSERT INTO ad_sources(code,name) VALUES ('R','Test source') RETURNING id,code")).rows[0];

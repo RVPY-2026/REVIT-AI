@@ -44,14 +44,14 @@ export function CallNoteForm({ studentId, preview = false }: { studentId: string
   }
   return <form className="grid min-w-0 gap-3" onSubmit={form.handleSubmit(submit)}>
     <div role="group" aria-label="Kênh liên hệ" className="flex flex-wrap gap-1">
-      {CONTACT_CHANNELS.map(value => <Button key={value} type="button" size="sm" variant={channel === value ? "secondary" : "outline"} className="min-h-11" aria-pressed={channel === value} disabled={pending} onClick={() => form.setValue("channel", value)}>{CONTACT_CHANNEL_LABELS[value]}</Button>)}
+      {CONTACT_CHANNELS.map(value => <Button key={value} type="button" size="compact" variant={channel === value ? "secondary" : "outline"} aria-pressed={channel === value} disabled={pending} onClick={() => form.setValue("channel", value)}>{CONTACT_CHANNEL_LABELS[value]}</Button>)}
     </div>
     <div className="grid gap-2"><Label htmlFor={`${id}-body`}>Nội dung liên hệ</Label><Textarea id={`${id}-body`} rows={3} placeholder="Nội dung trao đổi và việc cần theo dõi tiếp…" aria-invalid={Boolean(form.formState.errors.body)} {...form.register("body")} />
       {form.formState.errors.body && <p role="alert" className="text-sm text-destructive">{form.formState.errors.body.message}</p>}
     </div>
     <CrmSelect label="Kết quả liên hệ" value={outcome} options={[{ value: "", label: "Kết quả (không bắt buộc)" }, ...CONTACT_OUTCOMES.map(value => ({ value, label: CONTACT_OUTCOME_LABELS[value] }))]} onChange={value => form.setValue("outcome", value ? value as typeof CONTACT_OUTCOMES[number] : null)} disabled={pending} />
     <div className="grid min-w-0 gap-2"><Label htmlFor={`${id}-date`}>Hẹn liên hệ lại (giờ Việt Nam)</Label><Input id={`${id}-date`} type="datetime-local" value={dateTime} onChange={event => setDateTime(event.target.value)} className="min-w-0 w-full" />
-      <div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => quick(0,17)}>Hôm nay 17:00</Button><Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => quick(1,10)}>Ngày mai</Button><Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => quick(3,10)}>+3 ngày</Button>{dateTime && <Button type="button" size="sm" variant="ghost" className="min-h-11" onClick={() => setDateTime("")}>Bỏ hẹn</Button>}</div>
+      <div className="flex flex-wrap gap-1"><Button type="button" size="compact" variant="outline" onClick={() => quick(0,17)}>Hôm nay 17:00</Button><Button type="button" size="compact" variant="outline" onClick={() => quick(1,10)}>Ngày mai</Button><Button type="button" size="compact" variant="outline" onClick={() => quick(3,10)}>+3 ngày</Button>{dateTime && <Button type="button" size="compact" variant="ghost" onClick={() => setDateTime("")}>Bỏ hẹn</Button>}</div>
     </div>
     {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
     {blocked && <p role="status" className="text-sm text-muted-foreground">Chế độ xem thử chưa lưu ghi chú.</p>}

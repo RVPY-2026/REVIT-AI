@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { createManualLead } from "@/server/actions/leads"
+import { hasActivePhoneMatch } from "@/lib/student-phone-match"
 import { checkStudentPhone } from "@/server/actions/student-phone"
 import { DuplicatePhoneWarning, usePhoneMatches } from "@/components/admin/DuplicatePhoneWarning"
 import type { PhoneMatch } from "@/server/phone-matches"
@@ -38,7 +39,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
   })
   const sourceId = useWatch({ control: form.control, name: "sourceId" })
   const phone = useWatch({ control: form.control, name: "phone" })
-  const matches = usePhoneMatches(phone)
+  const { matches, error: phoneLookupError } = usePhoneMatches(phone)
   const selectedSource = availableSources.find((source) => source.id === sourceId)
   const mockBlocked = USE_MOCK || preview
 
@@ -48,7 +49,8 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
     try {
       const duplicateAcknowledged = Boolean(confirmation && normalizePhone(confirmation.phone) === values.phone)
       const checked = await checkStudentPhone({ phone: values.phone })
-      if (checked.length && !duplicateAcknowledged) { setConfirmation({ phone, matches: checked }); return }
+      if (!checked.ok) { toast.error(checked.error); return }
+      if (hasActivePhoneMatch(checked.data.matches) && !duplicateAcknowledged) { setConfirmation({ phone, matches: checked.data.matches }); return }
       const result = await createManualLead({ ...values, duplicateAcknowledged } as ManualLeadInput)
       if (!result.ok) {
         if (result.fieldErrors) {
@@ -76,9 +78,9 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
 
   return <Dialog open={open} onOpenChange={(next) => { if (!pending) { setOpen(next); setConfirmation(null) } }}>
     <DialogTrigger asChild>
-      <Button type="button" size="sm"><Plus aria-hidden="true" strokeWidth={1.75} />Thêm học viên</Button>
+      <Button type="button" size="compact"><Plus aria-hidden="true" strokeWidth={1.75} />Thêm học viên</Button>
     </DialogTrigger>
-    <DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
+    <DialogContent className="[&_input]:min-h-11">
       <DialogHeader>
         <DialogTitle>Thêm học viên</DialogTitle>
         <DialogDescription>Nhập thông tin liên hệ cơ bản và chọn nguồn đăng ký.</DialogDescription>
@@ -100,7 +102,7 @@ export function ManualStudentDialog({ sources, preview = false }: { sources: Sou
           <Input id={`${fieldPrefix}-email`} type="email" autoComplete="email" aria-invalid={Boolean(form.formState.errors.email)} aria-describedby={form.formState.errors.email ? `${fieldPrefix}-email-error` : undefined} {...form.register("email")} />
           <FieldError id={`${fieldPrefix}-email-error`} message={form.formState.errors.email?.message} />
         </div>
-        <DuplicatePhoneWarning matches={confirmation?.phone === phone ? confirmation.matches : matches} />
+        <DuplicatePhoneWarning matches={confirmation?.phone === phone ? confirmation.matches : matches} error={phoneLookupError} />
         <div className="grid gap-2">
           <Label id={`${fieldPrefix}-source-label`}>Nguồn đăng ký</Label>
           {availableSources.length ? <DropdownMenu>

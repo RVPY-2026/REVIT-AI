@@ -3,8 +3,8 @@ import { normalizePhone } from "@/lib/phone";
 import type { PhoneMatch } from "@/server/phone-matches";
 import { STUDENT_STATUSES } from "@/lib/constants";
 import { businessDayStart, followUpState, needsFollowUp } from "@/lib/follow-up";
-import { studentSearchText } from "@/lib/student-search";
-import { DEFAULT_SORT_DIR, studentFilterSchema, studentMonthRange, type StudentDetail, type StudentOverview, type StudentFilter, type StudentList, type StudentSummary } from "@/lib/schemas/student";
+import { isPhoneSearch, studentSearchText } from "@/lib/student-search";
+import { DEFAULT_SORT_DIR, StudentArchiveAccessError, studentFilterSchema, studentMonthRange, type StudentDetail, type StudentOverview, type StudentFilter, type StudentList, type StudentSummary } from "@/lib/schemas/student";
 
 const sources = [
   { id: "mock-source-a", code: "A", name: "Sale A", active: true },
@@ -68,8 +68,8 @@ export function mockPhoneMatches(user: SessionUser, phone: string): PhoneMatch[]
   if (!isAdmin(user) && !user.roles.includes("sale")) throw new Error("Forbidden");
   const matching = rows.filter(row => normalizePhone(row.phone) === normalizePhone(phone));
   const visible = matching.filter(row => isAdmin(user) || user.sourceIds.includes(row.sourceId));
-  const result: PhoneMatch[] = visible.map(({ id, code, fullName, status, sourceCode, signedUpAt }) => ({ id, code, fullName, status, sourceCode, signedUpAt }));
-  if (matching.some(row => !visible.includes(row))) result.push({ otherSource: true });
+  const result: PhoneMatch[] = visible.map(({ id, code, fullName, status, sourceCode, signedUpAt, archivedAt }) => ({ id, code, fullName, status, sourceCode, signedUpAt, ...(archivedAt ? { archived: true as const } : {}) }));
+  if (matching.some(row => !row.archivedAt && !visible.includes(row))) result.push({ otherSource: true });
   return result;
 }
 
@@ -85,7 +85,7 @@ function matches(row: StudentSummary, filter: ReturnType<typeof studentFilterSch
   if (filter.search) {
     const needle = studentSearchText(filter.search);
     const phone = normalizePhone(filter.search);
-    if (![row.fullName, row.email, row.code].some(value => value && studentSearchText(value).includes(needle)) && !(/^[0-9]+$/.test(phone) && normalizePhone(row.phone).includes(phone))) return false;
+    if (![row.fullName, row.email, row.code].some(value => value && studentSearchText(value).includes(needle)) && !(isPhoneSearch(filter.search) && /^[0-9]+$/.test(phone) && normalizePhone(row.phone).includes(phone))) return false;
   }
   if (filter.followUp && (filter.followUp === "due" ? !needsFollowUp(row) : followUpState(row).kind !== filter.followUp)) return false;
   return true;
@@ -114,12 +114,12 @@ function sortRows(list: StudentSummary[], filter: ReturnType<typeof studentFilte
 
 export function mockListStudents(user: SessionUser, input: StudentFilter): StudentList {
   const filter = studentFilterSchema.parse(input);
-  if (filter.archived && !isAdmin(user)) throw new Error("Forbidden");
+  if (filter.archived && !isAdmin(user)) throw new StudentArchiveAccessError();
   const scoped = sortRows(visibleRows(user).filter((row) => matches(row, filter)).map(toSummary), filter);
   const start = (filter.page - 1) * filter.pageSize;
   const sourceOptions = mockStudentSources(user);
   return {
-    rows: scoped.slice(start, start + filter.pageSize).map(row => isAdmin(user) ? { ...row, duplicatePhone: rows.filter(other => normalizePhone(other.phone) === normalizePhone(row.phone)).length > 1 } : row),
+    rows: scoped.slice(start, start + filter.pageSize).map(row => isAdmin(user) ? { ...row, duplicatePhone: !row.archivedAt && rows.filter(other => !other.archivedAt && normalizePhone(other.phone) === normalizePhone(row.phone)).length > 1 } : row),
     total: scoped.length,
     page: filter.page,
     pageSize: filter.pageSize,
@@ -130,7 +130,7 @@ export function mockListStudents(user: SessionUser, input: StudentFilter): Stude
 
 export function mockStudentFacets(user: SessionUser, input: StudentFilter) {
   const filter = studentFilterSchema.parse(input);
-  if (filter.archived && !isAdmin(user)) throw new Error("Forbidden");
+  if (filter.archived && !isAdmin(user)) throw new StudentArchiveAccessError();
   const base = visibleRows(user).filter(row => matches(row, { ...filter, status: undefined }));
   const counts = Object.fromEntries(STUDENT_STATUSES.map(status => [status, base.filter(row => row.status === status).length])) as Record<StudentSummary["status"], number>;
   const dueCount = visibleRows(user).filter(row => matches(row, { ...filter, followUp: "due" })).length;
@@ -143,7 +143,7 @@ export function mockStudentSources(user: SessionUser): StudentList["sources"] {
 
 export function mockExportStudents(user: SessionUser, input: StudentFilter): StudentSummary[] {
   const filter = studentFilterSchema.parse(input);
-  if (filter.archived && !isAdmin(user)) throw new Error("Forbidden");
+  if (filter.archived && !isAdmin(user)) throw new StudentArchiveAccessError();
   return sortRows(visibleRows(user).filter((row) => matches(row, filter)).map(toSummary), filter);
 }
 

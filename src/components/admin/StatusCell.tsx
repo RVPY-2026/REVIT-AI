@@ -41,7 +41,7 @@ export function StatusCell({ studentId, fullName, status, editable = false, prev
   }
   if (!editable) return <StatusBadge status={status} />
   return <><DropdownMenu><DropdownMenuTrigger asChild>
-    <button type="button" disabled={pending} aria-label={`Đổi trạng thái của ${fullName}`} className="group inline-flex min-h-11 items-center gap-1 rounded-full focus-visible:outline-2 focus-visible:outline-ring">
+    <button type="button" disabled={pending} aria-label={`Đổi trạng thái của ${fullName}`} className="group inline-flex min-h-11 md:min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1 rounded-full focus-visible:outline-2 focus-visible:outline-ring">
       <StatusBadge status={status} /><ChevronDown aria-hidden="true" size={14} strokeWidth={1.75} className="text-muted-foreground" />
     </button></DropdownMenuTrigger><DropdownMenuContent align="start"><DropdownMenuRadioGroup value={status} onValueChange={value => {
       if (value === status || pending) return

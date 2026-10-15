@@ -1,6 +1,7 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { studentNoteSchema, editStudentNoteSchema } from "@/lib/schemas/student-note";
 import { USE_MOCK } from "@/lib/runtime-mode";
@@ -11,6 +12,17 @@ import type { ActionResult } from "@/server/result";
 import { canCorrectContactNote } from "@/lib/contact-note";
 
 export async function addCallNote(input: unknown): Promise<ActionResult<{ id: string }>> {
+  return appendContactNote(input, false);
+}
+
+/** A sent-template acknowledgment does not complete an outstanding appointment. */
+export async function recordStudentMessageSent(input: unknown): Promise<ActionResult<{ id: string }>> {
+  const parsed = z.object({ studentId: z.uuid(), title: z.string().trim().min(1).max(200) }).strict().safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Thông tin tin nhắn chưa hợp lệ." };
+  return appendContactNote({ studentId: parsed.data.studentId, channel: "zalo", body: `Đã gửi tin: ${parsed.data.title}` }, true);
+}
+
+async function appendContactNote(input: unknown, preserveAppointment: boolean): Promise<ActionResult<{ id: string }>> {
   if (USE_MOCK) {
     await requirePermission("students.edit");
     return { ok: false, error: "Chức năng ghi chú chưa khả dụng trong chế độ xem thử." };
@@ -41,9 +53,16 @@ export async function addCallNote(input: unknown): Promise<ActionResult<{ id: st
 
       if (!student) return null;
 
+      let nextActionAt = parsed.data.nextActionAt ? new Date(parsed.data.nextActionAt) : null;
+      if (preserveAppointment) {
+        const [latest] = await tx.select({ nextActionAt: callNotes.nextActionAt }).from(callNotes)
+          .where(eq(callNotes.studentId, student.id)).orderBy(desc(callNotes.createdAt), desc(callNotes.id)).limit(1);
+        nextActionAt = latest?.nextActionAt ?? null;
+      }
+
       const [note] = await tx.insert(callNotes)
         .values({ studentId: student.id, body: parsed.data.body, authorId: user.id, channel: parsed.data.channel,
-          outcome: parsed.data.outcome, nextActionAt: parsed.data.nextActionAt ? new Date(parsed.data.nextActionAt) : null })
+          outcome: parsed.data.outcome, nextActionAt })
         .returning({ id: callNotes.id });
 
       await audit(tx, {
@@ -51,7 +70,7 @@ export async function addCallNote(input: unknown): Promise<ActionResult<{ id: st
         action: "student.call_note_added",
         entity: "call_notes",
         entityId: note.id,
-        data: { studentId: student.id, channel: parsed.data.channel, outcome: parsed.data.outcome, nextActionAt: parsed.data.nextActionAt },
+        data: { studentId: student.id, channel: parsed.data.channel, outcome: parsed.data.outcome, nextActionAt: nextActionAt?.toISOString() ?? null, preserveAppointment },
       });
 
       return note.id;

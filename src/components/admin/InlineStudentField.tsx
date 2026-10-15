@@ -16,6 +16,7 @@ import { USE_MOCK } from "@/lib/runtime-mode"
 import type { StudentFieldName } from "@/lib/schemas/student-field"
 import { updateStudentField } from "@/server/actions/student-field"
 import { updateStudentStatus } from "@/server/actions/student-status"
+import { hasActivePhoneMatch } from "@/lib/student-phone-match"
 import { checkStudentPhone } from "@/server/actions/student-phone"
 import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning"
 import type { PhoneMatch } from "@/server/phone-matches"
@@ -65,8 +66,10 @@ export function InlineStudentField({ studentId, field, value, label, answerKey, 
     try {
       const duplicateAcknowledged = confirmation?.value === next
       if (field === "phone") {
-        const matches = await checkStudentPhone({ phone: next, excludeId: studentId })
-        if (matches.length && !duplicateAcknowledged) { setConfirmation({ value: next, matches }); return }
+        const checked = await checkStudentPhone({ phone: next, excludeId: studentId })
+        if (!checked.ok) { toast.error(checked.error); return }
+        const matches = checked.data.matches
+        if (hasActivePhoneMatch(matches) && !duplicateAcknowledged) { setConfirmation({ value: next, matches }); return }
       }
       const result = field === "status"
         ? await updateStudentStatus({ studentId, status: next, expectedStatus: current })
@@ -94,6 +97,6 @@ export function InlineStudentField({ studentId, field, value, label, answerKey, 
     {form.formState.errors.value && <p id={`${inputId}-error`} role="alert" className="whitespace-normal text-xs text-destructive">{form.formState.errors.value.message}</p>}
     {blocked && <p className="whitespace-normal text-xs text-muted-foreground">Chế độ xem thử chưa lưu thay đổi.</p>}
     <DuplicatePhoneWarning matches={confirmation?.value === draft ? confirmation.matches : []} />
-    <div className="flex flex-wrap gap-1"><Button type="submit" size="sm" disabled={pending || blocked}><Check aria-hidden="true" size={16} strokeWidth={1.75} />{pending ? "Đang lưu…" : confirmation?.value === draft ? "Vẫn lưu số trùng" : "Lưu"}</Button><Button type="button" variant="ghost" size="sm" disabled={pending} onClick={cancel}><X aria-hidden="true" size={16} strokeWidth={1.75} />Hủy</Button></div>
+    <div className="flex flex-wrap gap-1"><Button type="submit" size="compact" disabled={pending || blocked}><Check aria-hidden="true" size={16} strokeWidth={1.75} />{pending ? "Đang lưu…" : confirmation?.value === draft ? "Vẫn lưu số trùng" : "Lưu"}</Button><Button type="button" variant="ghost" size="compact" disabled={pending} onClick={cancel}><X aria-hidden="true" size={16} strokeWidth={1.75} />Hủy</Button></div>
   </form>
 }

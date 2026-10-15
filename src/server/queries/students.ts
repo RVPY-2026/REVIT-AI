@@ -2,13 +2,13 @@ import "server-only";
 import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNull, isNotNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { can, isAdmin, type SessionUser } from "@/lib/auth/permissions";
-import { DEFAULT_SORT_DIR, studentFilterSchema, studentMonthRange, studentSearchPattern, type StudentDetail, type ParsedStudentFilter, type StudentFilter, type StudentList, type StudentSummary, type StudentOverview, type StudentKanban } from "@/lib/schemas/student";
+import { DEFAULT_SORT_DIR, StudentArchiveAccessError, studentFilterSchema, studentMonthRange, studentSearchPattern, type StudentDetail, type ParsedStudentFilter, type StudentFilter, type StudentList, type StudentSummary, type StudentOverview, type StudentKanban } from "@/lib/schemas/student";
 import { STUDENT_STATUSES } from "@/lib/constants";
 import { ACTIVE_STATUSES, FOLLOW_UP_AFTER_DAYS, businessDayStart } from "@/lib/follow-up";
 import { db } from "@/server/db";
 import { adSources, callNotes, studentStatusEvents, students, users, enrollments, studyPlanLessons } from "@/server/db/schema";
 import { normalizePhone, NORMALIZED_PHONE_SQL } from "@/lib/phone";
-import { studentSearchText } from "@/lib/student-search";
+import { isPhoneSearch, studentSearchText } from "@/lib/student-search";
 import { canCorrectContactNote } from "@/lib/contact-note";
 import { studentScope } from "@/server/auth/scope";
 
@@ -16,7 +16,7 @@ const managementPermission = "students.view" as const;
 
 export async function findPhoneMatches(user: SessionUser, phone: string) {
   const { phoneMatches } = await import("@/server/phone-matches");
-  return phoneMatches(db, user, phone);
+  return phoneMatches(db, user, phone, undefined, true);
 }
 
 function assertCanView(user: SessionUser) {
@@ -34,7 +34,7 @@ function assertDatabaseSourceId(sourceId: string | undefined) {
 /** Build all list/export predicates from validated input and an explicit caller scope. */
 export function buildStudentConditions(user: SessionUser, filter: ParsedStudentFilter): SQL[] {
   const conditions: SQL[] = [studentScope(user, "management")];
-  if (filter.archived && !isAdmin(user)) throw new Error("Forbidden");
+  if (filter.archived && !isAdmin(user)) throw new StudentArchiveAccessError();
   conditions.push(filter.archived ? isNotNull(students.archivedAt) : isNull(students.archivedAt));
 
   if (filter.status) conditions.push(eq(students.status, filter.status));
@@ -51,7 +51,7 @@ export function buildStudentConditions(user: SessionUser, filter: ParsedStudentF
     conditions.push(or(
       sql`rvpy_search_text(${students.fullName}) like ${pattern}`,
       sql`rvpy_search_text(${students.email}) like ${pattern}`,
-      /^[0-9]+$/.test(phone) ? sql`${sql.raw(NORMALIZED_PHONE_SQL)} like ${studentSearchPattern(phone)}` : undefined,
+      isPhoneSearch(filter.search) && /^[0-9]+$/.test(phone) ? sql`${sql.raw(NORMALIZED_PHONE_SQL)} like ${studentSearchPattern(phone)}` : undefined,
       ilike(students.code, pattern),
     )!);
   }
@@ -163,14 +163,14 @@ export async function decoratePageStudents(user: SessionUser, rows: StudentSumma
   if (isAdmin(user)) {
     const normalized = sql<string>`${sql.raw(NORMALIZED_PHONE_SQL)}`;
     const groups = await db.select({ phone: normalized, total: count() }).from(students)
-      .where(and(studentScope(user, "management"), inArray(normalized, rows.map(row => normalizePhone(row.phone)))))
+      .where(and(isNull(students.archivedAt), studentScope(user, "management"), inArray(normalized, rows.map(row => normalizePhone(row.phone)))))
       .groupBy(normalized).having(sql`count(*) > 1`);
     for (const group of groups) duplicatePhones.add(group.phone);
   }
   return rows.map(row => {
     const trial = trialRows.find(item => item.id === row.id);
     const end = trial?.trialExpiresAt ?? (trial?.trialStartedAt ? new Date(trial.trialStartedAt.getTime() + 9 * 86_400_000) : null);
-    return { ...row, ...(isAdmin(user) ? { duplicatePhone: duplicatePhones.has(normalizePhone(row.phone)) } : {}),
+    return { ...row, ...(isAdmin(user) ? { duplicatePhone: !row.archivedAt && duplicatePhones.has(normalizePhone(row.phone)) } : {}),
       trial: trial ? { daysLeft: end ? Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86_400_000)) : null,
         checklist: [trial.group1At, trial.group2At, trial.softwareReadyAt].filter(Boolean).length,
         confirmed: Number(trial.confirmed), hasPlan: trial.enrollmentStatus === "active" && Number(trial.plan) === 3 } : null };

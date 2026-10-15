@@ -21,7 +21,7 @@ export const studentFilterSchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   followUp: z.enum(STUDENT_FOLLOW_UPS).optional(),
-  archived: z.enum(["true"]).optional(),
+  archived: z.preprocess(value => value === "1" ? "true" : value, z.enum(["true"]).optional()),
   quickView: z.enum(["all"]).optional(),
   sort: z.enum(STUDENT_SORTS).default("signedUpAt"),
   dir: z.enum(["asc", "desc"]).optional(),
@@ -42,6 +42,10 @@ export type StudentFilter = {
 };
 
 export type ParsedStudentFilter = z.output<typeof studentFilterSchema>;
+
+export class StudentArchiveAccessError extends Error {
+  constructor() { super("Chỉ quản trị viên được xem hồ sơ đã lưu trữ."); this.name = "StudentArchiveAccessError"; }
+}
 
 export const studentIdSchema = z.union([z.uuid(), mockStudentIdSchema]);
 

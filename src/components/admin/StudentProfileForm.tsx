@@ -12,6 +12,7 @@ import { formatPhone } from "@/lib/format"
 import { USE_MOCK } from "@/lib/runtime-mode"
 import { studentChangeKey, type StudentFieldName } from "@/lib/schemas/student-field"
 import { updateStudentProfile } from "@/server/actions/student-field"
+import { hasActivePhoneMatch } from "@/lib/student-phone-match"
 import { checkStudentPhone } from "@/server/actions/student-phone"
 import { DuplicatePhoneWarning } from "@/components/admin/DuplicatePhoneWarning"
 import type { PhoneMatch } from "@/server/phone-matches"
@@ -84,8 +85,10 @@ export function StudentProfileForm({ studentId, fields, answers, editable, previ
     try {
       const duplicateAcknowledged = confirmation?.phone === values.phone
       if (dirty.some(spec => spec.field === "phone")) {
-        const matches = await checkStudentPhone({ phone: values.phone, excludeId: studentId })
-        if (matches.length && !duplicateAcknowledged) { setConfirmation({ phone: values.phone, matches }); return }
+        const checked = await checkStudentPhone({ phone: values.phone, excludeId: studentId })
+        if (!checked.ok) { toast.error(checked.error); return }
+        const matches = checked.data.matches
+        if (hasActivePhoneMatch(matches) && !duplicateAcknowledged) { setConfirmation({ phone: values.phone, matches }); return }
       }
       const result = await updateStudentProfile({ studentId, changes: toChanges(dirty, saved, values), duplicateAcknowledged })
       if (!result.ok) {
@@ -146,8 +149,8 @@ export function StudentProfileForm({ studentId, fields, answers, editable, previ
     </div>}
     {editable && dirty.length > 0 && <div role="region" aria-label="Lưu thay đổi hồ sơ" className="sticky bottom-20 z-20 mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-primary bg-popover p-3 shadow-lg md:bottom-4">
       <p className="mr-auto text-sm"><span className="font-mono tabular-nums">{dirty.length}</span> thay đổi chưa lưu{blocked && <span className="text-muted-foreground"> · chế độ xem thử không lưu</span>}</p>
-      <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={discard}><RotateCcw aria-hidden="true" strokeWidth={1.75} />Hủy thay đổi</Button>
-      <Button type="submit" size="sm" disabled={pending || blocked}><Check aria-hidden="true" strokeWidth={1.75} />{pending ? "Đang lưu…" : confirmation?.phone === values.phone ? "Vẫn lưu số trùng" : "Lưu thay đổi"}</Button>
+      <Button type="button" variant="ghost" size="compact" disabled={pending} onClick={discard}><RotateCcw aria-hidden="true" strokeWidth={1.75} />Hủy thay đổi</Button>
+      <Button type="submit" size="compact" disabled={pending || blocked}><Check aria-hidden="true" strokeWidth={1.75} />{pending ? "Đang lưu…" : confirmation?.phone === values.phone ? "Vẫn lưu số trùng" : "Lưu thay đổi"}</Button>
     </div>}
   </form>
 }

@@ -42,7 +42,7 @@ export function ClipboardButton({
   iconOnly?: boolean
 }) {
   return (
-    <Button type="button" variant="ghost" size={iconOnly ? "icon-sm" : "sm"} aria-label={iconOnly ? label : undefined} title={iconOnly ? label : undefined} className={`min-h-11 ${iconOnly ? "min-w-11" : ""} ${className ?? ""}`} onClick={() => void copyTextToClipboard(text)}>
+    <Button type="button" variant="ghost" size={iconOnly ? "icon-compact" : "compact"} aria-label={iconOnly ? label : undefined} title={iconOnly ? label : undefined} className={className} onClick={() => void copyTextToClipboard(text)}>
       <Copy aria-hidden="true" strokeWidth={1.75} />
       {!iconOnly && <span>{label}</span>}
     </Button>

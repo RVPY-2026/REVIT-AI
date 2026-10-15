@@ -14,7 +14,7 @@ export function DroppedReasonDialog({ open, onOpenChange, onConfirm, pending = f
 }) {
   const [reason, setReason] = useState<typeof DROPPED_REASONS[number] | "">("")
   const [note, setNote] = useState("")
-  return <Dialog open={open} onOpenChange={next => { if (!pending) onOpenChange(next) }}><DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
+  return <Dialog open={open} onOpenChange={next => { if (!pending) onOpenChange(next) }}><DialogContent className="[&_input]:min-h-11">
     <DialogHeader><DialogTitle>Lý do không tiếp tục</DialogTitle><DialogDescription>Chọn lý do để đội ngũ hiểu kết quả tư vấn. Hồ sơ và quyền học được giữ nguyên.</DialogDescription></DialogHeader>
     <form className="grid gap-4" onSubmit={event => { event.preventDefault(); if (reason && (reason !== "other" || note.trim())) void onConfirm({ reason, note: note.trim() || undefined }) }}>
       <CrmSelect label="Lý do không tiếp tục" value={reason} options={DROPPED_REASONS.map(value => ({ value, label: DROPPED_REASON_LABELS[value] }))} onChange={value => setReason(value as typeof DROPPED_REASONS[number])} disabled={pending} />

@@ -23,9 +23,9 @@ export function StudentManagementActions({ student, sources }: {
   const [pending, setPending] = useState(false)
   const options = mode === "archive" ? ARCHIVE_REASONS.map(value => ({ value, label: ARCHIVE_REASON_LABELS[value] })) : sources.filter(source => source.active !== false && source.id !== student.sourceId).map(source => ({ value: source.id, label: `${source.code} · ${source.name}` }))
   const valid = mode === "restore" || Boolean(reason && (mode === "transfer" || reason === "other" ? note.trim() : true))
-  return <><div className="flex flex-wrap gap-2">{student.archivedAt ? <Button variant="outline" size="sm" onClick={() => setMode("restore")}>Khôi phục hồ sơ</Button> : <>
-    <Button variant="outline" size="sm" onClick={() => { setMode("transfer"); setReason(""); setNote("") }}>Chuyển nguồn</Button><Button variant="outline" size="sm" onClick={() => { setMode("archive"); setReason(""); setNote("") }}>Lưu trữ hồ sơ</Button></>}</div>
-    <Dialog open={mode !== null} onOpenChange={open => { if (!open && !pending) setMode(null) }}><DialogContent className="[&_button]:min-h-11 [&_button[aria-label]]:min-w-11 [&_input]:min-h-11">
+  return <><div className="flex flex-wrap gap-2">{student.archivedAt ? <Button variant="outline" size="compact" onClick={() => setMode("restore")}>Khôi phục hồ sơ</Button> : <>
+    <Button variant="outline" size="compact" onClick={() => { setMode("transfer"); setReason(""); setNote("") }}>Chuyển nguồn</Button><Button variant="outline" size="compact" onClick={() => { setMode("archive"); setReason(""); setNote("") }}>Lưu trữ hồ sơ</Button></>}</div>
+    <Dialog open={mode !== null} onOpenChange={open => { if (!open && !pending) setMode(null) }}><DialogContent className="[&_input]:min-h-11">
       <DialogHeader><DialogTitle>{mode === "archive" ? "Lưu trữ hồ sơ" : mode === "transfer" ? "Chuyển nguồn" : "Khôi phục hồ sơ"}</DialogTitle><DialogDescription>{mode === "transfer" ? "Mã học viên được giữ nguyên. Nhân viên nguồn mới sẽ có quyền quản lý hồ sơ." : mode === "archive" ? "Hồ sơ được giữ lại và tạm ẩn khỏi danh sách đang xử lý." : "Hồ sơ sẽ trở lại danh sách và có thể chỉnh sửa."}</DialogDescription></DialogHeader>
       <form className="grid gap-4" onSubmit={async event => {
         event.preventDefault(); if (!valid || !mode) return; setPending(true)

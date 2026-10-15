@@ -82,7 +82,7 @@ export function StudentFilterToolbar({ filter, sources, view = "table", admin = 
         <span aria-hidden="true" className="mx-1 hidden w-px self-stretch bg-border sm:block" />
         {sources.map((source) => <button key={source.id} type="button" id={`${id}-${source.id}`} aria-pressed={filter.sourceId === source.id} title={source.name} className={chipClass(filter.sourceId === source.id)} onClick={() => go({ sourceId: filter.sourceId === source.id ? undefined : source.id })}>Nguồn {source.code}</button>)}
       </>}
-      {(activeCount > 0 || filter.search) && <Button type="button" variant="ghost" size="sm" disabled={pending} className="min-h-11 shrink-0" onClick={() => go({ status: undefined, sourceId: undefined, month: undefined, followUp: undefined, search: undefined, archived: undefined, quickView: "all" })}>Xóa bộ lọc ({activeCount})</Button>}
+      {(activeCount > 0 || filter.search) && <Button type="button" variant="ghost" size="compact" disabled={pending} className="shrink-0" onClick={() => go({ status: undefined, sourceId: undefined, month: undefined, followUp: undefined, search: undefined, archived: undefined, quickView: "all" })}>Xóa bộ lọc ({activeCount})</Button>}
     </div>
     {pending && <p role="status" className="text-sm text-muted-foreground">Đang tải kết quả…</p>}
   </section>;

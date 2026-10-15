@@ -54,7 +54,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
     return <main className="content grid justify-items-start gap-4 py-8"><h1 className="text-[28px] font-light">Bộ lọc chưa hợp lệ</h1><p role="alert" className="text-muted-foreground">Bạn kiểm tra từ khóa, tháng đăng ký và bộ lọc trong đường dẫn, hoặc chọn lại bộ lọc.</p><Button asChild variant="outline"><Link href="/quan-tri/hoc-vien">Chọn lại bộ lọc</Link></Button></main>
   }
   const filter: StudentFilter = parsed.data
-  if (filter.archived && !isAdmin(user)) return <main className="content py-8"><p role="alert">Chỉ quản trị viên được xem danh sách lưu trữ.</p></main>
+  if (filter.archived && !isAdmin(user)) return <main className="content grid justify-items-start gap-4 py-8"><h1 className="text-[28px] font-light">Danh sách lưu trữ</h1><Card><CardContent className="space-y-4 py-6"><p role="alert">Chỉ quản trị viên được xem hồ sơ đã lưu trữ. Bạn có thể quay lại danh sách học viên đang hoạt động.</p><Button asChild variant="outline"><Link href={studentListHref(filter, { archived: undefined, quickView: "all" }, { view: first(params.view) === "kanban" ? "kanban" : "table" })}>Về danh sách học viên</Link></Button></CardContent></Card></main>
   if (!isAdmin(user) && !Object.keys(params).some(key => ["search", "status", "sourceId", "month", "followUp", "archived", "quickView"].includes(key))) {
     redirect(studentListHref(filter, { followUp: "due", sort: "nextActionAt", dir: "asc" }, { view: first(params.view) === "kanban" ? "kanban" : "table" }))
   }
@@ -64,7 +64,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
   const actions = (sources: Parameters<typeof ManualStudentDialog>[0]["sources"]) => (
     <div className="flex flex-wrap items-center gap-2">
       <ViewSwitch filter={filter} view={kanban ? "kanban" : "table"} />
-      {canExport && <Button asChild variant="outline" size="sm"><Link href={studentExportHref(filter)}><ArrowDownToLine aria-hidden="true" strokeWidth={1.75} />Xuất Excel</Link></Button>}
+      {canExport && <Button asChild variant="outline" size="compact"><Link href={studentExportHref(filter)}><ArrowDownToLine aria-hidden="true" strokeWidth={1.75} />Xuất Excel</Link></Button>}
       {can(user, "students.create") && <ManualStudentDialog sources={sources} />}
     </div>
   )
@@ -72,7 +72,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
   if (kanban) {
     const [{ columns }, sources, facets] = await Promise.all([getStudentKanban(filter), getStudentSources(), getStudentFacets(filter)])
     return (
-      <main className="content py-8 sm:py-10 [&_button]:min-h-11 [&_a[data-slot=button]]:min-h-11">
+      <main className="content py-8 sm:py-10">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="font-mono text-xs text-muted-foreground">QUẢN LÝ · HỌC VIÊN</p>
@@ -95,7 +95,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
   const filtered = Boolean(filter.search || filter.status || filter.sourceId || filter.month || filter.followUp)
 
   return (
-    <main className="content py-8 sm:py-10 [&_button]:min-h-11 [&_a[data-slot=button]]:min-h-11">
+    <main className="content py-8 sm:py-10">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-xs text-muted-foreground">QUẢN LÝ · HỌC VIÊN</p>
@@ -118,14 +118,14 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
             <span className="text-sm text-muted-foreground">Trang {result.page} / {pageCount}</span>
             <div className="flex gap-2">
               {result.page <= 1 ? (
-                <Button type="button" variant="outline" size="sm" disabled><ArrowLeft aria-hidden="true" strokeWidth={1.75} />Trang trước</Button>
+                <Button type="button" variant="outline" size="compact" disabled><ArrowLeft aria-hidden="true" strokeWidth={1.75} />Trang trước</Button>
               ) : (
-                <Button asChild variant="outline" size="sm"><Link href={studentListHref(filter, { page: result.page - 1 })}><ArrowLeft aria-hidden="true" strokeWidth={1.75} />Trang trước</Link></Button>
+                <Button asChild variant="outline" size="compact"><Link href={studentListHref(filter, { page: result.page - 1 })}><ArrowLeft aria-hidden="true" strokeWidth={1.75} />Trang trước</Link></Button>
               )}
               {result.page >= pageCount ? (
-                <Button type="button" variant="outline" size="sm" disabled>Trang sau<ArrowRight aria-hidden="true" strokeWidth={1.75} /></Button>
+                <Button type="button" variant="outline" size="compact" disabled>Trang sau<ArrowRight aria-hidden="true" strokeWidth={1.75} /></Button>
               ) : (
-                <Button asChild variant="outline" size="sm"><Link href={studentListHref(filter, { page: result.page + 1 })}>Trang sau<ArrowRight aria-hidden="true" strokeWidth={1.75} /></Link></Button>
+                <Button asChild variant="outline" size="compact"><Link href={studentListHref(filter, { page: result.page + 1 })}>Trang sau<ArrowRight aria-hidden="true" strokeWidth={1.75} /></Link></Button>
               )}
             </div>
           </nav>
@@ -136,7 +136,7 @@ async function StudentsContent({ searchParams }: { searchParams: SearchParams })
             {filtered ? <SearchX aria-hidden="true" className="size-8 text-muted-foreground" strokeWidth={1.5} /> : <UsersRound aria-hidden="true" className="size-8 text-muted-foreground" strokeWidth={1.5} />}
             <h2 className="mt-4 font-heading text-lg font-medium">{filtered ? "Không có học viên khớp bộ lọc" : "Chưa có học viên nào"}</h2>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">{filtered ? "Thử đổi từ khóa hoặc bỏ bớt bộ lọc để xem thêm hồ sơ." : "Học viên sẽ xuất hiện ở đây khi có người điền form đăng ký học thử hoặc khi bạn thêm thủ công."}</p>
-            {filtered && <Button asChild variant="outline" size="sm" className="mt-4"><Link href="/quan-tri/hoc-vien">Xóa bộ lọc</Link></Button>}
+            {filtered && <Button asChild variant="outline" size="compact" className="mt-4"><Link href="/quan-tri/hoc-vien">Xóa bộ lọc</Link></Button>}
           </CardContent>
         </Card>
       )}

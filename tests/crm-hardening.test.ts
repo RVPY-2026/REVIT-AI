@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { followUpState, needsFollowUp, vietnamDateTimeInput, vietnamDateTimeInstant } from "../src/lib/follow-up";
 import { normalizePhone } from "../src/lib/phone";
-import { studentSearchText } from "../src/lib/student-search";
+import { isPhoneSearch, studentSearchText } from "../src/lib/student-search";
+import { hasActivePhoneMatch } from "../src/lib/student-phone-match";
+import { studentFilterSchema } from "../src/lib/schemas/student";
+import * as permissions from "../src/lib/auth/permissions";
+import * as studentsSchema from "../src/lib/schemas/student";
+import { loadServerModule } from "./helpers/server-module";
 import { updateStudentStatusSchema, bulkUpdateStudentStatusSchema } from "../src/lib/schemas/student-status";
 import { archiveStudentSchema } from "../src/lib/schemas/student-management";
 import { studentNoteSchema } from "../src/lib/schemas/student-note";
@@ -54,6 +59,8 @@ test("phone and Vietnamese search normalization handle canonical, international 
   for (const phone of ["0901 234 567", "+84901234567", "84901234567", "0901234567"]) assert.equal(normalizePhone(phone), "0901234567");
   assert.equal(studentSearchText("Nguyễn Đặng Ứng"), "nguyen dang ung");
   assert.equal(studentSearchText("Nguyễn".normalize("NFD")), "nguyen");
+  assert.equal(isPhoneSearch("A2610002"), false);
+  assert.equal(isPhoneSearch("+84 901 234 567"), true);
 });
 
 test("drop reasons, bulk restrictions, archive reasons and structured notes validate at the server boundary", () => {
@@ -78,7 +85,30 @@ test("mock matches redact foreign profiles and archived quick views are admin-on
   assert.ok(!JSON.stringify(matches).includes("Lý Bảo Châu"));
   assert.ok(mockListStudents(admin, { archived: "true" }).rows.every(row => row.archivedAt));
   assert.ok(mockListStudents(admin, {}).rows.every(row => !row.archivedAt));
-  assert.throws(() => mockListStudents(sale, { archived: "true" }), /Forbidden/);
+  assert.throws(() => mockListStudents(sale, { archived: "true" }), /Chỉ quản trị viên/);
   assert.equal(studentFilterParams({ followUp: "due", sort: "nextActionAt", pageSize: 100 }).get("followUp"), "due");
   assert.equal(studentFilterParams({ quickView: "all", archived: "true" }).get("archived"), "true");
+  assert.equal(studentFilterSchema.parse({ archived: "1" }).archived, "true");
+  const archived = mockPhoneMatches(admin, "0900000013");
+  assert.equal(archived.length, 1);
+  assert.equal(hasActivePhoneMatch(archived), false);
+  assert.equal(mockPhoneMatches(sale, "0900000013").length, 0);
+  assert.equal(hasActivePhoneMatch([...archived, { otherSource: true }]), true);
+});
+
+test("archived export returns a friendly 403 for sales before reading data or building a workbook", async () => {
+  const sale: SessionUser = { id, email: "mock@example.invalid", name: "Fixture", roles: ["sale"], sourceIds: [], studentId: null, avatarUrl: null };
+  let reads = 0;
+  const route = await loadServerModule<typeof import("../src/app/api/export/students/route")>("src/app/api/export/students/route.ts", {
+    "next/server": { NextResponse: { json: Response.json } }, "@/lib/schemas/student": studentsSchema,
+    "@/lib/auth/permissions": permissions, "@/lib/runtime-mode": { USE_MOCK: true },
+    "@/server/auth/session": { requirePermission: async () => sale },
+    "@/lib/api/students": { exportStudents: async () => { reads++; return []; } },
+    "./workbook": { createStudentsWorkbook: async () => { throw new Error("Workbook should not be built"); } },
+  });
+  for (const archived of ["1", "true"]) {
+    const result = await route.GET(new Request(`https://fixture.invalid/api/export/students?archived=${archived}`));
+    assert.equal(result.status, 403); assert.match((await result.json()).error, /Chỉ quản trị viên/);
+  }
+  assert.equal(reads, 0);
 });

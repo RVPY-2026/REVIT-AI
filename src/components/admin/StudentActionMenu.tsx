@@ -21,9 +21,9 @@ export function StudentActionMenu({ studentId, fullName, phone, email, editable,
 }) {
   const [contactOpen, setContactOpen] = useState(false)
   return <div className="flex items-center justify-end gap-0.5">
-    <Button asChild type="button" variant="ghost" size="icon-sm"><a href={zaloChatUrl(phone)} target="_blank" rel="noreferrer" aria-label={`Mở Zalo của ${fullName}`} title="Mở Zalo"><MessageCircle aria-hidden="true" strokeWidth={1.75} /></a></Button>
+    <Button asChild type="button" variant="ghost" size="icon-compact"><a href={zaloChatUrl(phone)} target="_blank" rel="noreferrer" aria-label={`Mở Zalo của ${fullName}`} title="Mở Zalo"><MessageCircle aria-hidden="true" strokeWidth={1.75} /></a></Button>
     <DropdownMenu>
-      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label={`Thao tác khác với ${fullName}`}><MoreHorizontal aria-hidden="true" strokeWidth={1.75} /></Button></DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-compact" aria-label={`Thao tác khác với ${fullName}`}><MoreHorizontal aria-hidden="true" strokeWidth={1.75} /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuItem asChild><a href={`tel:${phone}`}><Phone aria-hidden="true" strokeWidth={1.75} />Gọi điện</a></DropdownMenuItem>
         <DropdownMenuItem asChild><Link href={`/quan-tri/hoc-vien/${studentId}`}>Mở hồ sơ học viên</Link></DropdownMenuItem>

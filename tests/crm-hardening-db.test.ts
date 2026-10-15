@@ -29,7 +29,7 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
   const invalidations: string[] = [];
   let caller: permissions.SessionUser;
   try {
-    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening"])
+    for (const migration of ["0000_init", "0001_public_user_role", "0002_zalo_bot_outbox", "0003_signup_protection", "0004_students_crm_hardening", "0005_crm_review_function_security"])
       await pg.exec(await readFile(new URL(`../src/server/db/migrations/${migration}.sql`, import.meta.url), "utf8"));
     const [actor, owner] = await connection.insert(schema.users).values([
       { email: "crm-admin@example.invalid", name: "Fixture admin" }, { email: "crm-sale@example.invalid", name: "Fixture sale" },
@@ -67,6 +67,13 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
     const statuses = await loadServerModule<typeof import("../src/server/actions/student-status")>("src/server/actions/student-status.ts", shared);
     const management = await loadServerModule<typeof import("../src/server/actions/student-management")>("src/server/actions/student-management.ts", shared);
     const notes = await loadServerModule<typeof import("../src/server/actions/student-notes")>("src/server/actions/student-notes.ts", shared);
+    const phoneLimit = await loadServerModule<typeof import("../src/server/student-phone-limit")>("src/server/student-phone-limit.ts", shared);
+    let phoneQueryCount = 0;
+    const lookup = await loadServerModule<typeof import("../src/server/actions/student-phone")>("src/server/actions/student-phone.ts", {
+      ...shared, "@/server/student-phone-limit": phoneLimit, "@/lib/api/students": { getPhoneMatches: async (value: string) => {
+        phoneQueryCount++; return queries.findPhoneMatches(caller, value);
+      } },
+    });
     let seq = 0;
     async function student(source = a, extra: Partial<typeof schema.students.$inferInsert> = {}) {
       seq++;
@@ -76,6 +83,77 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
     const own = await student(a, { phone: "0901234567" });
     const hidden = await student(b, { phone: "+84901234567", fullName: "Hidden private name" });
     const hidden2 = await student(b, { phone: "0901 234 567" });
+
+    await t.test("search function has a fixed empty path and denies both inherited and explicit API privileges", async () => {
+      await pg.exec("CREATE ROLE anon; CREATE ROLE authenticated; GRANT EXECUTE ON FUNCTION public.rvpy_search_text(text) TO anon, authenticated;");
+      await pg.exec(await readFile(new URL("../src/server/db/migrations/0005_crm_review_function_security.sql", import.meta.url), "utf8"));
+      const result = await pg.query<{ normalized: string; anon_allowed: boolean; auth_allowed: boolean; config: string[] }>(
+        "select public.rvpy_search_text('Nguyễn Đặng') as normalized, has_function_privilege('anon', 'public.rvpy_search_text(text)', 'EXECUTE') as anon_allowed, has_function_privilege('authenticated', 'public.rvpy_search_text(text)', 'EXECUTE') as auth_allowed, proconfig as config from pg_proc where oid = 'public.rvpy_search_text(text)'::regprocedure");
+      assert.equal(result.rows[0].normalized, "nguyen dang");
+      assert.equal(result.rows[0].anon_allowed, false); assert.equal(result.rows[0].auth_allowed, false);
+      assert.deepEqual(result.rows[0].config, ['search_path=""']);
+    });
+
+    await t.test("phone lookup validates inputs and consumes an atomic durable per-user budget before reading matches", async () => {
+      caller = sale;
+      assert.equal((await lookup.checkStudentPhone({ phone: "bad" })).ok, false);
+      assert.equal((await lookup.checkStudentPhone({ phone: "0901234567", excludeId: "bad" })).ok, false);
+      assert.equal(phoneQueryCount, 0);
+      for (let i = 0; i < 30; i++) assert.equal((await lookup.checkStudentPhone({ phone: "0901234567" })).ok, true);
+      const denied = await lookup.checkStudentPhone({ phone: "0901234567" });
+      assert.equal(denied.ok, false); assert.equal(phoneQueryCount, 30);
+      const time = new Date("2027-01-01T00:00:00Z");
+      const concurrent = await Promise.all(Array.from({ length: 35 }, () => phoneLimit.consumeStudentPhoneLookup(db, "parallel-fixture", time)));
+      assert.equal(concurrent.filter(Boolean).length, 30);
+      assert.equal(await phoneLimit.consumeStudentPhoneLookup(db, "another-fixture", time), true);
+      assert.equal(await phoneLimit.consumeStudentPhoneLookup(db, "parallel-fixture", new Date(time.getTime() + 60_000)), true);
+      const counters = await connection.select().from(schema.signupRateLimits);
+      assert.equal(counters.some(row => row.keyHash.includes(sale.id)), false);
+      caller = admin;
+    });
+
+    await t.test("archived duplicates are history only, do not block creation, and never reveal foreign archives", async () => {
+      const number = "0907777777";
+      const historic = await student(a, { phone: number, archivedAt: new Date(), archiveReason: "duplicate", archivedById: actor.id });
+      await student(b, { phone: number, archivedAt: new Date(), archiveReason: "spam", archivedById: actor.id });
+      const visible = await queries.findPhoneMatches(sale, number);
+      assert.equal(visible.length, 1); assert.ok(!("otherSource" in visible[0]) && visible[0].archived);
+      assert.equal((await phones.phoneMatches(db, sale, number)).length, 0);
+      caller = sale;
+      const created = await lead.createManualLead({ sourceId: a.id, fullName: "Active replacement", phone: number });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      const decorated = await queries.listStudents(admin, { search: number });
+      assert.equal(decorated.rows.length, 1); assert.equal(decorated.rows[0].duplicatePhone, false);
+      const archivedRows = await queries.listStudents(admin, { search: number, archived: "true" });
+      assert.equal(archivedRows.rows.find(row => row.id === historic.id)?.duplicatePhone, false);
+      caller = admin;
+    });
+
+    await t.test("sent-message acknowledgments preserve future and overdue appointments; ordinary contact can complete them", async () => {
+      caller = sale;
+      for (const delta of [-86_400_000, 86_400_000]) {
+        const target = await student();
+        const appointment = new Date(Date.now() + delta).toISOString();
+        assert.equal((await notes.addCallNote({ studentId: target.id, body: "Appointment", nextActionAt: appointment })).ok, true);
+        assert.equal((await notes.recordStudentMessageSent({ studentId: target.id, title: "Trial reminder" })).ok, true);
+        const profile = await queries.getStudent(sale, target.id);
+        assert.equal(profile?.nextActionAt, appointment);
+        assert.equal((await queries.listStudents(sale, { search: target.code, followUp: "due" })).total, delta < 0 ? 1 : 0);
+        assert.equal((await notes.addCallNote({ studentId: target.id, body: "Completed callback" })).ok, true);
+        assert.equal((await queries.getStudent(sale, target.id))?.nextActionAt, null);
+        assert.equal((await notes.recordStudentMessageSent({ studentId: target.id, title: "Follow-up" })).ok, true);
+        assert.equal((await queries.getStudent(sale, target.id))?.nextActionAt, null);
+      }
+      assert.equal((await notes.recordStudentMessageSent({ studentId: hidden.id, title: "Hidden" })).ok, false);
+      caller = admin;
+    });
+
+    await t.test("student codes containing digits do not also match unrelated phone substrings", async () => {
+      const exact = await student(a, { code: "A2610999" });
+      await student(b, { phone: "0926109990" });
+      assert.deepEqual((await queries.listStudents(admin, { search: "A2610999" })).rows.map(row => row.id), [exact.id]);
+    });
 
     await t.test("phone query returns own detail and only one boolean for any number of hidden matches", async () => {
       const matches = await queries.findPhoneMatches(sale, "84901234567");
@@ -94,7 +172,8 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
       assert.equal((await lead.createManualLead(input)).ok, false);
       const accepted = await lead.createManualLead({ ...input, duplicateAcknowledged: true });
       assert.equal(accepted.ok, true);
-      const [createdAudit] = await connection.select().from(schema.auditLog).where(orm.eq(schema.auditLog.action, "student.created_manually"));
+      if (!accepted.ok) return;
+      const [createdAudit] = await connection.select().from(schema.auditLog).where(orm.and(orm.eq(schema.auditLog.action, "student.created_manually"), orm.eq(schema.auditLog.entityId, accepted.data.id)));
       assert.equal((createdAudit.data as Record<string, unknown>).duplicateAcknowledged, true);
       const target = await student();
       const edit = { studentId: target.id, field: "phone", value: "+84901234567", expectedValue: target.phone };
@@ -124,10 +203,13 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
       assert.equal((await queries.getStudentOverview(admin)).total, before - 1);
       assert.equal((await queries.listStudents(admin, {})).rows.some(row => row.id === own.id), false);
       assert.equal((await queries.getStudentKanban(admin, {})).columns.some(column => column.rows.some(row => row.id === own.id)), false);
-      assert.equal((await queries.listStudents(admin, { archived: "true" })).rows[0].id, own.id);
-      await assert.rejects(queries.listStudents(sale, { archived: "true" }), /Forbidden/);
+      assert.equal((await queries.listStudents(admin, { archived: "true" })).rows.some(row => row.id === own.id), true);
+      await assert.rejects(queries.listStudents(sale, { archived: "true" }), /Chỉ quản trị viên/);
+      await assert.rejects(queries.getStudentKanban(sale, { archived: "true" }), /Chỉ quản trị viên/);
+      await assert.rejects(queries.exportStudents(sale, { archived: "true" }), /Chỉ quản trị viên/);
       assert.equal((await fields.updateStudentField({ studentId: own.id, field: "fullName", value: "Changed", expectedValue: own.fullName })).ok, false);
       assert.equal((await notes.addCallNote({ studentId: own.id, body: "Blocked" })).ok, false);
+      assert.equal((await notes.recordStudentMessageSent({ studentId: own.id, title: "Blocked" })).ok, false);
       assert.equal((await statuses.updateStudentStatus({ studentId: own.id, status: "consulting", expectedStatus: "new" })).ok, false);
       const archived = (await queries.getStudent(admin, own.id))!;
       assert.equal(archived.timeline.at(-1)?.kind, "archive");
@@ -277,6 +359,7 @@ test("CRM hardening runs actual actions and queries against isolated migrated Po
         mockManagement.restoreStudent({ studentId: own.id, expectedArchivedAt: new Date().toISOString() }),
         mockManagement.transferStudentSource({ studentId: own.id, expectedSourceId: a.id, sourceId: c.id, reason: "Mock transfer" }),
         mockNotes.addCallNote({ studentId: own.id, body: "Mock contact", channel: "zalo" }),
+        mockNotes.recordStudentMessageSent({ studentId: own.id, title: "Mock template" }),
         mockNotes.editCallNote({ studentId: own.id, noteId: own.id, body: "Mock correction", expectedBody: "Original" }),
         mockStatuses.updateStudentStatus({ studentId: own.id, status: "trial", expectedStatus: "new" }),
         mockStatuses.bulkUpdateStudentStatus({ studentIds: [own.id], status: "consulting", expectedStatuses: { [own.id]: "new" } }),

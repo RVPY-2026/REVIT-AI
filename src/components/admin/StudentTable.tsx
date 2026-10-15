@@ -77,7 +77,7 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
   }
 
   const checkbox = (checked: boolean, onChange: () => void, label: string) => (
-    <label className="inline-flex size-11 items-center justify-center"><input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="size-4 cursor-pointer accent-[var(--primary)]" /></label>
+    <label className="inline-flex size-11 md:size-9 [@media(pointer:coarse)]:size-11 items-center justify-center"><input type="checkbox" checked={checked} onChange={onChange} aria-label={label} className="size-4 cursor-pointer accent-[var(--primary)]" /></label>
   )
 
   const columns: Array<ColumnDef<typeof dataTableFeatures, TableItem>> = [
@@ -144,14 +144,14 @@ export function StudentTable({ rows, editable, canExport = false, filter = {}, p
     {selected.size > 0 && <div role="region" aria-label="Thao tác với học viên đã chọn" className="sticky bottom-20 z-20 mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-primary bg-popover p-3 shadow-lg md:bottom-4">
       <p className="mr-auto text-sm font-medium"><span className="font-mono tabular-nums">{selected.size}</span> học viên đã chọn</p>
       {editable && <DropdownMenu>
-        <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="sm">Đổi trạng thái</Button></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><Button type="button" variant="outline" size="compact">Đổi trạng thái</Button></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem className="min-h-11" onSelect={() => { void applyBulk("consulting") }}>{STUDENT_STATUS_META.consulting.label}</DropdownMenuItem>
           <DropdownMenuItem className="min-h-11" onSelect={() => setBulkTarget("dropped")}>{STUDENT_STATUS_META.dropped.label}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>}
-      {canExport && <Button asChild variant="outline" size="sm"><a href={`/api/export/students?ids=${selectedIds.join(",")}`}><ArrowDownToLine aria-hidden="true" strokeWidth={1.75} />Xuất Excel</a></Button>}
-      <Button type="button" variant="ghost" size="sm" onClick={() => { setSelected(new Set()); setMatching(false) }}>Bỏ chọn</Button>
+      {canExport && <Button asChild variant="outline" size="compact"><a href={`/api/export/students?ids=${selectedIds.join(",")}`}><ArrowDownToLine aria-hidden="true" strokeWidth={1.75} />Xuất Excel</a></Button>}
+      <Button type="button" variant="ghost" size="compact" onClick={() => { setSelected(new Set()); setMatching(false) }}>Bỏ chọn</Button>
     </div>}
     <DroppedReasonDialog open={bulkTarget === "dropped"} onOpenChange={open => { if (!open) setBulkTarget(null) }} pending={pending} preview={blocked} onConfirm={async data => { await applyBulk("dropped", data.reason, data.note) }} />
   </>
@@ -190,8 +190,8 @@ function StudentCard({ student, editable, preview, selected, onToggle }: { stude
       </div>
       <div className="flex items-center gap-1 text-sm"><span className="font-mono text-[13px]">{formatPhone(student.phone)}</span><ClipboardButton text={student.phone} label="Sao chép số điện thoại" iconOnly /></div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <Button asChild size="sm" variant="outline"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" strokeWidth={1.75} />Mở Zalo</a></Button>
-        <Button asChild variant="ghost" size="sm"><Link href={`/quan-tri/hoc-vien/${student.id}`}>Mở hồ sơ</Link></Button>
+        <Button asChild size="compact" variant="outline"><a href={zaloChatUrl(student.phone)} target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" strokeWidth={1.75} />Mở Zalo</a></Button>
+        <Button asChild variant="ghost" size="compact"><Link href={`/quan-tri/hoc-vien/${student.id}`}>Mở hồ sơ</Link></Button>
       </div>
     </article>
   )
