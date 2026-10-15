@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     ".next-crm-check/**",
     ".next-filter-preview/**",
     ".next-onboarding-preview/**",
+    ".next-learning/**",
+    "tmp/**",
     "out/**",
     "build/**",
     ".netlify/**",

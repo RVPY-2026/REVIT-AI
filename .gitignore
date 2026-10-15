@@ -19,6 +19,8 @@
 /.next-crm-check/
 /.next-filter-preview/
 /.next-onboarding-preview/
+/.next-learning/
+/tmp/
 /out/
 
 # production
