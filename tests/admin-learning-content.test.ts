@@ -71,7 +71,7 @@ test("generated learning metadata follows CRM 0005 and preserves archived studen
   assert.equal(current.prevId, previous.id);
   assert.ok(current.tables["public.students"].columns.archived_at);
   assert.deepEqual(
-    journal.entries.slice(-3).map((entry: { idx: number }) => entry.idx),
+    journal.entries.slice(4, 7).map((entry: { idx: number }) => entry.idx),
     [4, 5, 6],
   );
 });

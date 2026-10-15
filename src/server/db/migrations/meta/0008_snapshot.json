@@ -1,6 +1,6 @@
 {
-  "id": "e1072e00-ed2b-4b1e-84cc-5b2be52ebd7a",
-  "prevId": "f6d979d4-a936-4d76-b866-2dff9bc599cb",
+  "id": "236cd481-d39d-4abe-9f64-0b5000fd0075",
+  "prevId": "40d15614-b119-4c53-8d57-6e08bf4b7814",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2738,7 +2738,7 @@
         },
         "learning_uploads_status": {
           "name": "learning_uploads_status",
-          "value": "\"learning_uploads\".\"status\" IN ('pending', 'uploaded', 'consumed', 'cancelled')"
+          "value": "\"learning_uploads\".\"status\" IN ('pending', 'uploaded', 'consumed', 'cancelled', 'cleaned')"
         }
       },
       "isRLSEnabled": true

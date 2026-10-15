@@ -1,4 +1,5 @@
 import { ADMIN_STATUS_META, STUDENT_STATUS_META } from "@/lib/constants";
+import { ARCHIVE_REASON_LABELS } from "@/lib/crm";
 
 /** One vocabulary for filters, sentences and field details. */
 export const AUDIT_ACTIONS: Record<string, { group: string; label: string }> = {
@@ -11,6 +12,7 @@ export const AUDIT_ACTIONS: Record<string, { group: string; label: string }> = {
   "student.field_updated": { group: "Học viên", label: "đã sửa thông tin học viên" },
   "student.contact_updated": { group: "Học viên", label: "đã sửa liên hệ học viên" },
   "student.call_note_added": { group: "Học viên", label: "đã thêm ghi chú tư vấn" },
+  "student.permanently_deleted": { group: "Học viên", label: "đã xóa vĩnh viễn hồ sơ học viên" },
   "student.checklist_changed": { group: "Học viên", label: "đã cập nhật chuẩn bị học thử" },
   "student.account_activated": { group: "Tài khoản", label: "đã mở tài khoản học viên" },
   "account.role_granted": { group: "Tài khoản", label: "đã cấp vai trò" },
@@ -33,14 +35,15 @@ export const AUDIT_ENTITIES: Record<string, string> = { students: "Học viên",
 export const AUDIT_FIELDS: Record<string, string> = { before: "Trước", after: "Sau", from: "Trước", to: "Sau",
   name: "Tên", fullName: "Họ tên", phone: "Điện thoại", email: "Địa chỉ thư", ownerUserId: "Người phụ trách",
   active: "Hoạt động", code: "Mã", status: "Trạng thái", field: "Thông tin", count: "Số mục", role: "Vai trò",
-  studentId: "Mã hồ sơ", accountId: "Mã tài khoản", done: "Đã hoàn thành" };
+  studentId: "Mã hồ sơ", accountId: "Mã tài khoản", done: "Đã hoàn thành",
+  sourceCode: "Mã nguồn", archiveReason: "Lý do lưu trữ", signedUpAt: "Ngày đăng ký" };
 export function auditActionLabel(action: string) { return Object.hasOwn(AUDIT_ACTIONS, action) ? AUDIT_ACTIONS[action].label : action; }
 export function auditValue(value: unknown): string {
   if (value === null || value === undefined) return "Chưa có";
   if (typeof value === "boolean") return value ? "Có" : "Không";
   if (typeof value === "string" && Object.hasOwn(STUDENT_STATUS_META, value)) return STUDENT_STATUS_META[value as keyof typeof STUDENT_STATUS_META].label;
   if (typeof value === "string" && Object.hasOwn(ADMIN_STATUS_META, value)) return ADMIN_STATUS_META[value as keyof typeof ADMIN_STATUS_META].label;
-  const roles: Record<string, string> = { admin: "Quản trị", sale: "Tư vấn", student: "Học viên", user: "Tài khoản thường", formal: "Học chính thức" };
+  const roles: Record<string, string> = { ...ARCHIVE_REASON_LABELS, admin: "Quản trị", sale: "Tư vấn", student: "Học viên", user: "Tài khoản thường", formal: "Học chính thức" };
   if (typeof value === "string") return Object.hasOwn(AUDIT_FIELDS, value) ? AUDIT_FIELDS[value] : Object.hasOwn(roles, value) ? roles[value] : value;
   return String(value);
 }

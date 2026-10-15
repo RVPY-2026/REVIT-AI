@@ -15,10 +15,10 @@ export const STUDENT_DELETION_REFERENCES = [
 export type StudentDeletionCheck = { blockers: string[] };
 export const STUDENT_DELETE_RETENTION_MS = 30 * 86_400_000;
 
-export function studentDeletionStateBlockers(row: { archivedAt: Date | null; userId: string | null }, now = new Date()): string[] {
+export function studentDeletionStateBlockers(row: { archivedAt: Date | null; userId: string | null; retentionReady?: boolean }, now = new Date()): string[] {
   const blockers: string[] = [];
   if (!row.archivedAt) blockers.push("Bạn cần lưu trữ hồ sơ trước khi xóa vĩnh viễn.");
-  else if (row.archivedAt.getTime() > now.getTime() - STUDENT_DELETE_RETENTION_MS)
+  else if (!(row.retentionReady ?? row.archivedAt.getTime() <= now.getTime() - STUDENT_DELETE_RETENTION_MS))
     blockers.push("Hồ sơ phải được lưu trữ ít nhất 30 ngày trước khi xóa vĩnh viễn.");
   if (row.userId) blockers.push("Hồ sơ đã liên kết tài khoản đăng nhập.");
   return blockers;

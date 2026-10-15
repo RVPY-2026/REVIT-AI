@@ -35,10 +35,10 @@ export async function studentDeletionBlockers(connection: Db | Tx, user: Session
   const selection = Object.fromEntries(decisions.map(reference => [reference.table,
     sql<boolean>`exists(select 1 from ${sql.identifier(reference.table)} where ${sql.identifier(reference.column)} = ${row.id} ${reference.table === "students" ? sql`and ${studentScope(user, "management")}` : sql``})`,
   ]));
+  // Preserve Postgres timestamp precision at the destructive 30-day boundary.
+  selection.retentionReady = sql<boolean>`${students.archivedAt} <= current_timestamp - interval '30 days'`;
   const [flags] = await connection.select(selection).from(students)
     .where(and(eq(students.id, row.id), studentScope(user, "management"))).limit(1);
   if (!flags) return ["Không tìm thấy học viên."];
-  const [clock] = await connection.select({ now: sql<string>`current_timestamp::text` }).from(students)
-    .where(and(eq(students.id, row.id), studentScope(user, "management"))).limit(1);
-  return [...studentDeletionStateBlockers(row, new Date(clock.now)), ...decisions.filter(reference => flags[reference.table]).map(reference => reference.message)];
+  return [...studentDeletionStateBlockers({ ...row, retentionReady: flags.retentionReady === true }), ...decisions.filter(reference => flags[reference.table]).map(reference => reference.message)];
 }

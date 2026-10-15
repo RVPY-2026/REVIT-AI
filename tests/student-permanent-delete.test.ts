@@ -107,6 +107,18 @@ test("permanent deletion is a scoped, retained-code transaction with exhaustive 
       }
     });
 
+    await t.test("the database rejects an archive one microsecond short of 30 days and includes the exact boundary", async () => {
+      const row = await fixture();
+      await db.transaction(async tx => {
+        const [recent] = await tx.update(schema.students).set({ archivedAt: orm.sql`current_timestamp - interval '30 days' + interval '1 microsecond'` })
+          .where(orm.eq(schema.students.id, row.id)).returning({ id: schema.students.id, archivedAt: schema.students.archivedAt, userId: schema.students.userId });
+        assert.match((await helper.studentDeletionBlockers(tx, admin, recent)).join(" "), /30 ngày/);
+        const [exact] = await tx.update(schema.students).set({ archivedAt: orm.sql`current_timestamp - interval '30 days'` })
+          .where(orm.eq(schema.students.id, row.id)).returning({ id: schema.students.id, archivedAt: schema.students.archivedAt, userId: schema.students.userId });
+        assert.equal((await helper.studentDeletionBlockers(tx, admin, exact)).length, 0);
+      });
+    });
+
     await t.test("eligible deletion removes only permitted children, burns code, and audits no personal data", async () => {
       const row = await fixture();
       await connection.insert(schema.callNotes).values({ studentId: row.id, body: "Private note" });
