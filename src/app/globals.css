@@ -26,14 +26,16 @@
   --primary-deep: #a3124f;
   --primary-soft: #fbe4ee;
   --primary-foreground: #ffffff;
+  --primary-button-start: #a3124f;
+  --primary-button-end: #c2185b;
   --secondary: #f6ebf1;
   --secondary-foreground: var(--foreground);
   --accent: #fbe4ee;
   --accent-foreground: var(--foreground);
   --glass: rgba(255, 255, 255, 0.72);
   --ring: #c2185b;
-  --success: #1f8a5b;
-  --warning: #b26a00;
+  --success: #187347;
+  --warning: #935700;
   --destructive: #c62828;
   --info: #2563eb;
 
@@ -71,6 +73,8 @@
   --primary-deep: #c2185b;
   --primary-soft: rgba(255, 61, 132, 0.14);
   --primary-foreground: #ffffff;
+  --primary-button-start: #a3124f;
+  --primary-button-end: #c2185b;
   --secondary: rgba(255, 255, 255, 0.06);
   --accent: rgba(255, 61, 132, 0.14);
   --glass: rgba(24, 10, 30, 0.62);
@@ -108,6 +112,8 @@
   --primary-deep: #3d9fe6;
   --primary-soft: rgba(143, 216, 255, 0.16);
   --primary-foreground: #04204a;
+  --primary-button-start: #3d9fe6;
+  --primary-button-end: #8fd8ff;
   --secondary: rgba(255, 255, 255, 0.08);
   --accent: rgba(143, 216, 255, 0.16);
   --glass: rgba(10, 48, 100, 0.66);
@@ -191,7 +197,7 @@
   background: var(--gradient-hero);
 }
 @utility bg-primary-gradient {
-  background: linear-gradient(90deg, var(--primary-deep), var(--primary));
+  background: linear-gradient(90deg, var(--primary-button-start), var(--primary-button-end));
 }
 @utility bg-band {
   background: var(--gradient-band);

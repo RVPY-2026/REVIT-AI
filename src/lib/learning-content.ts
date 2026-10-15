@@ -1,7 +1,5 @@
-export const VIEW_LIMIT = 25 * 1024 * 1024;
-export const DOWNLOAD_LIMIT = 100 * 1024 * 1024;
-export const LEARNING_PRIMARY_BACKGROUND = "var(--primary-deep)";
-export const LEARNING_STATUS_FOREGROUND = "var(--foreground)";
+export const VIEW_LIMIT = 25_000_000;
+export const DOWNLOAD_LIMIT = 50_000_000;
 const types: Record<string, readonly string[]> = {
   pdf: ["application/pdf"], png: ["image/png"], jpg: ["image/jpeg"], jpeg: ["image/jpeg"], webp: ["image/webp"],
   exe: ["application/vnd.microsoft.portable-executable", "application/x-msdownload", "application/octet-stream"],
@@ -9,12 +7,13 @@ const types: Record<string, readonly string[]> = {
   zip: ["application/zip", "application/x-zip-compressed"],
   rvt: ["application/octet-stream"], rfa: ["application/octet-stream"],
 };
+export const UPLOAD_MIME_TYPES = [...new Set(Object.values(types).flat())];
 export function validateUpload(file: { filename: string; contentType: string; size: number; mode: "view" | "download" }): string | null {
   const extension = file.filename.split(".").pop()?.toLowerCase() ?? "";
   if (!types[extension]?.includes(file.contentType)) return "Loại tệp chưa được hỗ trợ. Bạn chọn đúng định dạng nhé.";
   if (file.mode === "view" && !["pdf", "png", "jpg", "jpeg", "webp"].includes(extension)) return "Tệp này chỉ được dùng với Cho tải.";
   const limit = file.mode === "view" ? VIEW_LIMIT : DOWNLOAD_LIMIT;
-  if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > limit) return `Bạn chọn tệp lớn hơn 0 và không quá ${limit / 1024 / 1024} MB.`;
+  if (!Number.isSafeInteger(file.size) || file.size <= 0 || file.size > limit) return `Bạn chọn tệp lớn hơn 0 và không quá ${limit / 1_000_000} MB.`;
   return null;
 }
 export function normalizeYoutube(value: string): string | null {

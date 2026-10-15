@@ -16,5 +16,5 @@ export const learningUploads = pgTable("learning_uploads", {
 }, (t) => [
   check("learning_uploads_size", sql`${t.size} > 0 AND ${t.size} <= 50000000`),
   check("learning_uploads_mode", sql`${t.mode} IN ('view', 'download')`),
-  check("learning_uploads_status", sql`${t.status} IN ('pending', 'uploaded', 'consumed', 'cancelled')`),
+  check("learning_uploads_status", sql`${t.status} IN ('pending', 'uploaded', 'consumed', 'cancelled', 'cleaned')`),
 ]).enableRLS();

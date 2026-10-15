@@ -1,5 +1,5 @@
 {
-  "id": "8944ebe6-59b8-4f30-8257-228be5689978",
+  "id": "aa7af9e9-6644-41b0-aaab-d05bf434ccf8",
   "prevId": "8c2d3015-8949-43be-ba71-4e6d50e6d55c",
   "version": "7",
   "dialect": "postgresql",
@@ -2553,7 +2553,7 @@
         },
         "learning_uploads_status": {
           "name": "learning_uploads_status",
-          "value": "\"learning_uploads\".\"status\" IN ('pending', 'uploaded', 'consumed', 'cancelled')"
+          "value": "\"learning_uploads\".\"status\" IN ('pending', 'uploaded', 'consumed', 'cancelled', 'cleaned')"
         }
       },
       "isRLSEnabled": true
