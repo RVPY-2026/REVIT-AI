@@ -15,6 +15,7 @@ export function DataTable<TData extends RowData>({
   tabletCards = false,
   cardsOnly = false,
   listLabel = "Danh sách học viên",
+  scrollable = false,
 }: {
   columns: Array<DataTableColumn<TData>>
   data: TData[]
@@ -23,12 +24,13 @@ export function DataTable<TData extends RowData>({
   tabletCards?: boolean
   cardsOnly?: boolean
   listLabel?: string
+  scrollable?: boolean
 }) {
   const table = useTable({ features: dataTableFeatures, columns, data })
 
   return (
     <>
-      {!cardsOnly && <div className={tabletCards ? "hidden overflow-x-auto rounded-2xl border border-border lg:block" : "hidden overflow-x-auto rounded-2xl border border-border md:block"}>
+      {!cardsOnly && <div data-learning-table={scrollable || undefined} role={scrollable ? "region" : undefined} aria-label={scrollable ? listLabel : undefined} tabIndex={scrollable ? 0 : undefined} className={`${tabletCards ? "hidden overflow-x-auto rounded-2xl border border-border lg:block" : "hidden overflow-x-auto rounded-2xl border border-border md:block"} ${scrollable ? "max-h-96 overflow-y-auto" : ""}`}>
         <table className="w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-background-2 text-xs font-semibold text-muted-foreground">
             {table.getHeaderGroups().map((headerGroup) => (

@@ -52,8 +52,14 @@ try {
           await page.screenshot({ path: `${output}/${name}-${width}-${theme}-${state}.png`, fullPage: false, caret: "initial", animations: "disabled" });
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
           const contrast = await checkContrast();
-          results.push({ page: name, width, theme, state, overflow, contrast });
+          const stickyHeaders = await page.evaluate(() => [...document.querySelectorAll('[data-learning-table]')].filter((element) => element.getClientRects().length && element.scrollHeight > element.clientHeight).map((element) => {
+            const header = element.querySelector('thead'); const before = header.getBoundingClientRect().top; const previous = element.scrollTop;
+            element.scrollTop = 100; const after = header.getBoundingClientRect().top; element.scrollTop = previous;
+            return Math.abs(before - after) < 2;
+          }));
+          results.push({ page: name, width, theme, state, overflow, contrast, stickyHeaders });
           if (overflow) throw new Error(`Page overflow: ${name}/${width}/${theme}/${state}`);
+          if (stickyHeaders.some((value) => !value)) throw new Error(`Table header did not remain sticky: ${name}/${width}/${theme}/${state}`);
           if (contrast.minimum !== null && contrast.minimum < 4.5) throw new Error(`Contrast below AA: ${name}/${width}/${theme}/${state}`);
         }
         await page.goto(`http://localhost:3106/quan-tri/${route}`, { waitUntil: "domcontentloaded" });
