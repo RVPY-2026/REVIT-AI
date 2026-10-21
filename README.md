@@ -13,7 +13,9 @@ It replaces a Google Sheets + Zalo workflow that was run entirely by hand.
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ecf8e?logo=supabase&logoColor=white)
 ![Drizzle](https://img.shields.io/badge/Drizzle-ORM-c5f74f?logo=drizzle&logoColor=black)
 ![pnpm](https://img.shields.io/badge/pnpm-10-f69220?logo=pnpm&logoColor=white)
-![Vercel](https://img.shields.io/badge/deploy-Vercel-000?logo=vercel)
+[![Netlify](https://img.shields.io/badge/deploy-Netlify-00c7b7?logo=netlify&logoColor=white)](https://rvpy-web.netlify.app/)
+
+**🔗 Live demo: [rvpy-web.netlify.app](https://rvpy-web.netlify.app/)**
 
 [Quick start](#-quick-start) · [Architecture](#-architecture) · [Scripts](#-scripts) · [Testing](#-testing) · [Deploy](#-deployment) · [Docs](#-documentation)
 
@@ -52,7 +54,7 @@ flowchart LR
     A[Management area]
   end
 
-  subgraph Next["Next.js 16 · Vercel"]
+  subgraph Next["Next.js 16 · Netlify"]
     PX[proxy.ts<br/>session refresh + area guards]
     RSC[Server Components<br/>src/server/queries]
     ACT[Server Actions<br/>src/server/actions]
@@ -144,7 +146,7 @@ Copy `.env.example` to `.env.local`. Never commit `.env.local`. Empty optional v
 | `SUPABASE_SECRET_KEY` | server | Storage admin tasks (signed URLs, backups) |
 | `DATABASE_URL` | server | Transaction pooler, port 6543 (used by the app) |
 | `DATABASE_URL_DIRECT` | server | Session pooler/direct, port 5432 (used by migrations) |
-| `CRON_SECRET` | server | Bearer token Vercel Cron sends |
+| `CRON_SECRET` | server | Bearer token the cron job sends to the Zalo outbox worker |
 | `SIGNUP_RATE_LIMIT_SECRET` | server | Hashes rate-limit keys (≥ 32 chars) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | mixed | Signup CAPTCHA (required in production) |
 | `ZALO_BOT_*` | server | Zalo Bot token, webhook secret and message images |
@@ -241,7 +243,12 @@ pnpm lint
 
 ## ☁️ Deployment
 
-The app deploys to **Vercel**. [`vercel.json`](vercel.json) schedules `/api/cron/zalo-outbox` once a day. More frequent Zalo retries on the free plan run through a separate Supabase Cron job (`pnpm zalo:cron:setup`, see [docs/zalo-bot.md](docs/zalo-bot.md)).
+The app is deployed on **Netlify** at **https://rvpy-web.netlify.app/**.
+
+- Netlify builds it with `pnpm run build` and the `@netlify/plugin-nextjs` runtime. Pages, server actions and route handlers all run as Netlify functions.
+- The build settings live in the Netlify site dashboard. The repo has no `netlify.toml`.
+- Set the environment variables below under **Site configuration → Environment variables**, then redeploy.
+- Zalo outbox retries run through **Supabase Cron**, which calls `/api/cron/zalo-outbox` with `CRON_SECRET` (`pnpm zalo:cron:setup`, see [docs/zalo-bot.md](docs/zalo-bot.md)). The cron entry in [`vercel.json`](vercel.json) only runs on Vercel, so Netlify ignores it.
 
 Production checklist:
 
@@ -251,6 +258,7 @@ Production checklist:
 - [ ] `CRON_SECRET`, `SIGNUP_RATE_LIMIT_SECRET`, Turnstile keys restricted to the production hostname
 - [ ] `pnpm db:migrate` against production, then `pnpm db:seed` once
 - [ ] Staff preapproved with `pnpm db:staff`
+- [ ] `NEXT_PUBLIC_SITE_URL` set to the public origin, Zalo webhook registered (`pnpm zalo:webhook:set`) and Supabase Cron installed (`pnpm zalo:cron:setup --apply`)
 
 ## 📚 Documentation
 
