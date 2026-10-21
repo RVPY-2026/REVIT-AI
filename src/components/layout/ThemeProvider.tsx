@@ -50,7 +50,14 @@ function BlueprintEasterEgg() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+      if (
+        typeof e.key !== "string" ||
+        e.isComposing ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        e.key.length !== 1
+      ) return;
       const el = e.target;
       if (
         el instanceof Element &&

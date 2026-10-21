@@ -18,20 +18,26 @@ export async function getStudentOnboarding(user: SessionUser, studentId: string,
     enrollment: { kind: enrollments.kind, status: enrollments.status, trialStartedAt: enrollments.trialStartedAt, trialExpiresAt: enrollments.trialExpiresAt },
   }).from(students).leftJoin(enrollments, eq(students.id, enrollments.studentId)).where(where).limit(1);
   if (!student) return null;
-  const [zaloConnection] = await conn.select({ chatId: zaloBotConnections.chatId }).from(zaloBotConnections)
-    .where(eq(zaloBotConnections.studentId, studentId)).limit(1);
-  const zaloQueue = await getZaloQueueSummary(user, studentId, conn);
   const enrollment = student.enrollment;
-  const lessonRows = await conn.select({ id: studyPlanLessons.id, title: studyPlanLessons.title, trialOrder: studyPlanLessons.trialOrder,
-    reportedAt: studyPlanLessons.reportedAt, completedAt: studyPlanLessons.completedAt,
-    progressNote: studyPlanLessons.progressNote, submissionUrl: studyPlanLessons.submissionUrl,
-  }).from(studyPlanLessons).innerJoin(enrollments, eq(enrollments.id, studyPlanLessons.enrollmentId))
-    .innerJoin(students, eq(students.id, enrollments.studentId))
-    .where(and(where, isNotNull(studyPlanLessons.trialOrder))).orderBy(asc(studyPlanLessons.trialOrder));
-  // Login identities are visible only to the admin who can grant access.
-  const [account] = can(user, "students.activate") ? await conn.select({ email: users.email, disabledAt: users.disabledAt,
-    studentRole: sql<boolean>`exists(select 1 from ${userRoles} where ${userRoles.userId} = ${users.id} and ${userRoles.role} = 'student')`,
-  }).from(students).innerJoin(users, eq(students.userId, users.id)).where(where).limit(1) : [];
+  // Only start related reads after confirming the caller can see this student.
+  // These independent queries can overlap instead of paying four network waits.
+  const [connectionRows, zaloQueue, lessonRows, accountRows] = await Promise.all([
+    conn.select({ chatId: zaloBotConnections.chatId }).from(zaloBotConnections)
+      .where(eq(zaloBotConnections.studentId, studentId)).limit(1),
+    getZaloQueueSummary(user, studentId, conn),
+    conn.select({ id: studyPlanLessons.id, title: studyPlanLessons.title, trialOrder: studyPlanLessons.trialOrder,
+      reportedAt: studyPlanLessons.reportedAt, completedAt: studyPlanLessons.completedAt,
+      progressNote: studyPlanLessons.progressNote, submissionUrl: studyPlanLessons.submissionUrl,
+    }).from(studyPlanLessons).innerJoin(enrollments, eq(enrollments.id, studyPlanLessons.enrollmentId))
+      .innerJoin(students, eq(students.id, enrollments.studentId))
+      .where(and(where, isNotNull(studyPlanLessons.trialOrder))).orderBy(asc(studyPlanLessons.trialOrder)),
+    // Login identities are visible only to the admin who can grant access.
+    can(user, "students.activate") ? conn.select({ email: users.email, disabledAt: users.disabledAt,
+      studentRole: sql<boolean>`exists(select 1 from ${userRoles} where ${userRoles.userId} = ${users.id} and ${userRoles.role} = 'student')`,
+    }).from(students).innerJoin(users, eq(students.userId, users.id)).where(where).limit(1) : Promise.resolve([]),
+  ]);
+  const [zaloConnection] = connectionRows;
+  const [account] = accountRows;
   const start = enrollment ? iso(enrollment.trialStartedAt) : null;
   return {
     studentId, zalo: { connected: Boolean(zaloConnection?.chatId), ...zaloQueue },

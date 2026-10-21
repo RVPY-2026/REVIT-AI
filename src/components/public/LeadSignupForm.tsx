@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import type { z } from "zod";
 import { ChevronDown } from "lucide-react";
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { leadSignupSchema, type LeadSignupInput } from "@/lib/schemas/lead";
-import { LEAD_CHANNEL_OPTIONS, OCCUPATION_OPTIONS } from "@/lib/constants";
+import { LEAD_CHANNEL_OPTIONS, OCCUPATION_OPTIONS, ZALO_REGISTRATION_CONTACT } from "@/lib/constants";
 import { submitLeadSignup } from "@/server/actions/leads";
 import { SignupVerification } from "@/components/public/SignupVerification";
 
@@ -90,6 +90,7 @@ export function LeadSignupForm({
   referrerCode?: string;
 }) {
   const router = useRouter();
+  const errorSummary = useRef<HTMLDivElement>(null);
   const [verificationReset, setVerificationReset] = useState(0);
   const {
     register,
@@ -116,6 +117,10 @@ export function LeadSignupForm({
   const heardAbout = useWatch({ control, name: "answers.heardAbout" });
   const occupation = useWatch({ control, name: "occupation" });
   const captchaToken = useWatch({ control, name: "captchaToken" });
+  const rootError = errors.root?.message;
+  useEffect(() => {
+    if (rootError) errorSummary.current?.focus();
+  }, [rootError]);
   const onVerification = useCallback((token: string) => setValue("captchaToken", token), [setValue]);
   const verificationRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) || process.env.NODE_ENV === "production";
 
@@ -338,13 +343,18 @@ export function LeadSignupForm({
         </div>
       </fieldset>
       <SignupVerification onToken={onVerification} resetKey={verificationReset} />
-      {errors.root?.message ? (
-        <p
+      {rootError ? (
+        <div
+          ref={errorSummary}
+          tabIndex={-1}
           role="alert"
-          className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive"
+          className="grid gap-3 rounded-lg border border-destructive/30 p-3 text-sm text-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {errors.root.message}
-        </p>
+          <p>{rootError}</p>
+          <Button asChild variant="outline" className="min-h-11 w-fit text-foreground">
+            <a href={ZALO_REGISTRATION_CONTACT.href} target="_blank" rel="noopener noreferrer">Liên hệ RVPY qua Zalo</a>
+          </Button>
+        </div>
       ) : null}
       <p className="text-sm text-muted-foreground">
         RVPY dùng thông tin này để liên hệ tư vấn và sắp xếp học thử. Đăng ký

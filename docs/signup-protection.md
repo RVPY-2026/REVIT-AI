@@ -2,6 +2,8 @@
 
 Apply `0003_signup_protection` before running the updated signup or Zalo onboarding code. It adds two RLS-enabled internal tables (`lead_signup_sessions`, `signup_rate_limits`) with no public Data API policies, plus the Zalo code issuance timestamp. No existing students, accounts or connected chats are changed by the migration.
 
+The combined CRM/learning release also requires the committed journal through `0008_permanent_delete`. Running the new code against an older database can fail on `students.archived_at` or the permanent code-reservation table. A successful `db:generate` only checks schema declarations against snapshots; it does not apply migrations or prove that the deployed database is current.
+
 ## Signup configuration
 
 Set the following in the hosting environment and local environment used for live signup testing:
@@ -18,6 +20,18 @@ Shared Postgres counters initially allow 20 attempts/IP per 10 minutes, 3 submis
 A random seven-day ownership cookie authorizes retries and code renewal for one profile. The short phone deduplication window is not identity proof. A different browser cannot receive or rotate an existing signup's Zalo code through phone matching. Lost ownership requires staff support. Codes are never returned solely because a URL contains a valid-looking student id.
 
 Expired rate counters are pruned by the authenticated daily worker. An idle Supabase minute scheduler skips HTTP calls, so cleanup may wait for the daily fallback. Token hashes never go to the browser; raw cookies/codes never go to audit or application logs.
+
+## Signup failure diagnostics
+
+Unexpected signup failures return a Vietnamese category and an eight-character support reference. Schema mismatches, connection outages and missing source configuration have distinct messages. Failures after the lead transaction use a separate confirmation message to discourage duplicate submissions. Expected CAPTCHA/rate-limit/duplicate messages remain unchanged.
+
+Find the matching `[lead-signup-failed]` server log using that support reference. Its only payload is incident ID, execution stage and an allowlisted driver error code. Never log the raw exception: Drizzle errors can contain SQL parameters, personal data and connection details. The client shows one focusable error summary, retains the form draft and links to the configured registration contact on Zalo.
+
+### Postgres.js timestamp regression (2026-10-20)
+
+The limiter's raw `ON CONFLICT` expressions previously interpolated JavaScript `Date` objects directly. These parameters bypass the timestamp column mapper, causing the real Postgres.js driver to fail with `ERR_INVALID_ARG_TYPE` before creating the lead. PGlite accepted the values and therefore did not expose this transport mismatch. Raw timestamp parameters now use ISO strings with explicit `::timestamptz` casts; typed timestamp column inserts remain `Date` values.
+
+A regression test checks the compiled limiter SQL parameters. An authorized real-Postgres diagnostic reproduced the failure before the change and passed afterward. The signup server path then succeeded through lead/session/Zalo-code creation inside a transaction that was deliberately rolled back. No diagnostic lead or rate-limit changes were committed and no Zalo messages were sent; CAPTCHA provider transport was outside that diagnostic. Both application and migration connections were checked and already had the matching 0000–0008 migration chain, so no migration was reapplied. Earlier missing-column log entries were historical and did not establish the current signup failure.
 
 ## Concurrent staff edits
 

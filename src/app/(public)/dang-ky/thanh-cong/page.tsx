@@ -34,6 +34,7 @@ export default function SignupSuccessPage({
 async function Confirmation({
   searchParams,
 }: Pick<PageProps<"/dang-ky/thanh-cong">, "searchParams">) {
+  await connection(); // Session expiry and the sheet date are request-time.
   const { code, uiPreview } = await searchParams;
   const cookieStore = await cookies();
   const showZaloPreview =
@@ -43,7 +44,6 @@ async function Confirmation({
     : !USE_MOCK && typeof code === "string"
       ? await getSignupZaloState(cookieStore.get(SIGNUP_COOKIE)?.value, cookieStore.get(ZALO_LINK_COOKIE)?.value, code)
       : null;
-  await connection(); // the sheet date is request-time
   const validCode =
     typeof code === "string" && /^[A-Z]\d{2}(0[1-9]|1[0-2])\d{3}$/.test(code);
   const notes = [
