@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "web", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 3000, "autoPort": true }
+    { "name": "web", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 3000, "autoPort": true },
+    { "name": "web-mock", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev", "-p", "3100"], "port": 3100, "env": { "NEXT_PUBLIC_USE_MOCK": "true", "RVPY_TEST_DIST_DIR": ".next-crm-check" } }
   ]
 }
